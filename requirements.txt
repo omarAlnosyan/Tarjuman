@@ -1,0 +1,45 @@
+# =============================================================================
+# Al-Fasih - Arabic Poetry RAG System
+# Week 2: RAG Core + JAIS LLM
+# =============================================================================
+
+# --- Core ---
+pyyaml>=6.0.3
+pandas>=2.3.3
+python-dotenv>=1.0.0
+
+# --- Arabic NLP ---
+pyarabic>=0.6.15
+camel-tools>=1.5.7
+
+# --- LangChain RAG ---
+langchain>=0.1.0
+langchain-core>=0.1.0
+langchain-community>=0.0.20
+langchain-huggingface>=0.0.3
+
+# --- Vector Database ---
+chromadb>=0.4.22
+
+# --- Embeddings ---
+sentence-transformers>=2.3.0
+
+# --- Sparse Search (BM25) ---
+rank-bm25>=0.2.2
+
+# --- LLM (JAIS via HuggingFace) ---
+transformers>=4.43.4
+torch>=2.0
+accelerate>=0.25.0
+bitsandbytes>=0.42.0
+
+# --- ML Utilities ---
+scikit-learn>=1.4.2
+numpy>=1.26.0
+
+# --- UI (Week 3) ---
+streamlit>=1.30.0
+
+# --- Evaluation ---
+ragas>=0.1.0
+datasets>=2.16.0

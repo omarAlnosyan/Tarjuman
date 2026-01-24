@@ -1,0 +1,50 @@
+graph LR
+    subgraph "Frontend Components"
+        A[Homepage<br/>Welcome + Examples]
+        B[Search Input<br/>Verse Query]
+        C[Result Card<br/>Verse Display]
+        D[Sidebar<br/>Examples List]
+        A --> B
+        B --> C
+        D --> B
+    end
+    
+    subgraph "Backend Components"
+        E[API Endpoints<br/>/search, /health, /poets]
+        F[Guardrails<br/>is_poetry_query]
+        G[Hybrid Retriever<br/>BM25 + FAISS]
+        H[LLM Service<br/>Groq API]
+        E --> F
+        F --> G
+        G --> H
+    end
+    
+    subgraph "Data Components"
+        I[JSON Database<br/>687 verses]
+        J[ChromaDB<br/>Vector Store]
+        K[BM25 Index<br/>In-memory]
+        L[DOCX Source<br/>Raw Data]
+        L --> I
+        I --> J
+        I --> K
+    end
+    
+    A --> E
+    C --> E
+    G --> I
+    G --> J
+    G --> K
+    H --> I
+    
+    style A fill:#e1f5ff
+    style B fill:#e1f5ff
+    style C fill:#e1f5ff
+    style D fill:#e1f5ff
+    style E fill:#fff4e1
+    style F fill:#fff4e1
+    style G fill:#f3e5f5
+    style H fill:#e8f5e9
+    style I fill:#ffebee
+    style J fill:#ffebee
+    style K fill:#ffebee
+    style L fill:#ffebee

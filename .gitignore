@@ -1,0 +1,50 @@
+﻿# Python
+__pycache__/
+*.py[cod]
+*.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv
+*.egg-info/
+dist/
+build/
+
+# Environment variables
+.env
+*.key
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Data (keep structure, ignore large files)
+data/vectordb/*.bin
+data/vectordb/*.pickle
+data/vectordb/chroma.sqlite3
+
+# Node
+node_modules/
+.next/
+out/
+*.log
+npm-debug.log*
+
+# Testing
+.pytest_cache/
+.coverage
+
+# Temporary files
+*.tmp
+*.bak
+*.cache
