@@ -43,3 +43,6 @@ streamlit>=1.30.0
 # --- Evaluation ---
 ragas>=0.1.0
 datasets>=2.16.0
+
+# --- LLM (Ollama) ---
+langchain-ollama>=0.1.0

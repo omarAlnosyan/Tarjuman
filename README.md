@@ -20,14 +20,14 @@
 
 **ترجمان** يوفر شرحاً دقيقاً وموثوقاً لأبيات الشعر العربي من المعلقات السبع، باستخدام:
 - 🔍 **Hybrid Search** (BM25 + FAISS) للبحث الذكي
-- 🤖 **Llama 3.3 70B** لتحسين الشرح
+- 🤖 **Llama 3.3 70B** عبر Groq API
 - 📚 **687 بيت شعري** من المعلقات السبع مع شروحات الزوزني
 
 </div>
 
 **Tarjuman** provides accurate and reliable explanations for Arabic poetry verses from the Seven Mu'allaqat, using:
 - 🔍 **Hybrid Search** (BM25 + FAISS) for intelligent search
-- 🤖 **Llama 3.3 70B** for explanation enhancement
+- 🤖 **Llama 3.3 70B** via Groq API
 - 📚 **687 poetry verses** from the Seven Mu'allaqat with Al-Zawzani's commentaries
 
 ---
@@ -36,19 +36,37 @@
 
 <div dir="rtl">
 
+### 🔍 البحث والشرح
 - ✅ **بحث هجين ذكي**: يجمع بين البحث النصي (BM25) والدلالي (FAISS)
-- ✅ **تحسين تلقائي**: استخدام LLM لإعادة صياغة الشرح بلغة واضحة
-- ✅ **واجهة تراثية**: تصميم عربي أصيل مستوحى من المخطوطات
-- ✅ **حماية من الأخطاء**: رفض الأسئلة غير الشعرية تلقائياً
+- ✅ **شرح نقي**: عرض شرح الزوزني مباشرة بدون إضافات
 - ✅ **687 بيت**: قاعدة بيانات شاملة من المعلقات السبع
+
+### 💬 المحادثة الذكية
+- ✅ **معلومات الشعراء**: اسأل "من هو امرؤ القيس؟" أو "الفارس الشاعر"
+- ✅ **معلومات المعلقات**: اسأل "ما هي المعلقات؟" للحصول على نبذة شاملة
+- ✅ **ردود ودية**: يجيب على التحيات والأسئلة العامة بذكاء
+
+### 🎨 الواجهة
+- ✅ **تصميم تراثي**: واجهة عربية أصيلة مستوحاة من المخطوطات
+- ✅ **صفحة هبوط**: تجربة استخدام سلسة مع شعار وعنوان جذاب
+- ✅ **أمثلة سريعة**: أبيات شعرية وأسئلة عامة جاهزة للتجربة
 
 </div>
 
+### 🔍 Search & Explanation
 - ✅ **Intelligent Hybrid Search**: Combines keyword (BM25) and semantic (FAISS) search
-- ✅ **Automatic Enhancement**: Uses LLM to rephrase explanations in clear language
-- ✅ **Heritage UI**: Authentic Arabic design inspired by manuscripts
-- ✅ **Error Protection**: Automatically rejects non-poetry queries
+- ✅ **Pure Explanation**: Direct display of Al-Zawzani's commentary without additions
 - ✅ **687 Verses**: Comprehensive database from the Seven Mu'allaqat
+
+### 💬 Smart Conversation
+- ✅ **Poet Information**: Ask "Who is Imru' al-Qais?" or use poet nicknames
+- ✅ **Mu'allaqat Information**: Ask "What are the Mu'allaqat?" for comprehensive overview
+- ✅ **Friendly Responses**: Intelligently answers greetings and general questions
+
+### 🎨 Interface
+- ✅ **Heritage Design**: Authentic Arabic UI inspired by manuscripts
+- ✅ **Landing Page**: Smooth user experience with attractive logo and title
+- ✅ **Quick Examples**: Ready-to-try poetry verses and general questions
 
 ---
 
@@ -63,7 +81,7 @@
 ┌─────────────────────────────────────────────────────────────┐
 │                    FastAPI Backend                          │
 │                    Port: 8000                                │
-│  • Guardrails → Hybrid Search → LLM Enhancement            │
+│  • Smart Chat → Hybrid Search → Pure Explanation           │
 └─────────────────────────────────────────────────────────────┘
                             ↓
 ┌─────────────────────────────────────────────────────────────┐
@@ -84,7 +102,7 @@
 
 - Python 3.9+
 - Node.js 18+
-- Groq API Key (للـ LLM - اختياري)
+- Groq API Key (مجاني من [console.groq.com](https://console.groq.com/))
 
 ### التثبيت | Installation
 
@@ -180,7 +198,7 @@ The project contains **687 poetry verses** from the Seven Mu'allaqat:
 
 ### LLM
 - **Llama 3.3 70B** - Language model
-- **Groq API** - LLM provider
+- **Groq API** - LLM provider (fast and free)
 
 ### Embeddings
 - **multilingual-e5-base** - Embedding model
@@ -189,9 +207,9 @@ The project contains **687 poetry verses** from the Seven Mu'allaqat:
 
 ## 📖 الاستخدام | Usage
 
-### مثال | Example
-
 <div dir="rtl">
+
+### 1️⃣ شرح الأبيات الشعرية
 
 **المدخل:**
 ```
@@ -201,10 +219,26 @@ The project contains **687 poetry verses** from the Seven Mu'allaqat:
 **المخرج:**
 - **الشاعر:** لبيد بن ربيعة
 - **رقم البيت:** 3
-- **البيت:** عَفَتِ الدِّيَار مَحَلُّهَا فَمُقَامُهَا بِمِنىً تَأَبَّد غَوْلُهَا فَرِجَامُها
-- **الشرح:** [شرح محسّن بواسطة LLM]
+- **البيت الكامل:** عَفَتِ الدِّيَار مَحَلُّهَا فَمُقَامُهَا بِمِنىً تَأَبَّد غَوْلُهَا فَرِجَامُها
+- **الشرح:** [شرح الزوزني النقي]
+
+### 2️⃣ معلومات عن الشعراء
+
+**أمثلة:**
+- `من هو امرؤ القيس؟` → نبذة كاملة + لماذا كتب "قفا نبك"
+- `الفارس الشاعر` → معلومات عن عنترة بن شداد
+- `شاعر الحكمة` → معلومات عن زهير بن أبي سلمى
+
+### 3️⃣ معلومات عامة
+
+**أمثلة:**
+- `ما هي المعلقات؟` → تعريف + قائمة الشعراء السبعة
+- `كيف حالك؟` → رد ودود
+- `من أنت؟` → تعريف بالبوت
 
 </div>
+
+### 1️⃣ Explaining Poetry Verses
 
 **Input:**
 ```
@@ -214,8 +248,22 @@ The project contains **687 poetry verses** from the Seven Mu'allaqat:
 **Output:**
 - **Poet:** Labid ibn Rabi'ah
 - **Verse Number:** 3
-- **Verse:** عَفَتِ الدِّيَار مَحَلُّهَا فَمُقَامُّهَا...
-- **Explanation:** [LLM-enhanced explanation]
+- **Full Verse:** عَفَتِ الدِّيَار مَحَلُّهَا فَمُقَامُهَا...
+- **Explanation:** [Pure Al-Zawzani commentary]
+
+### 2️⃣ Poet Information
+
+**Examples:**
+- `Who is Imru' al-Qais?` → Full biography + why he wrote "Qifa nabki"
+- `The Warrior Poet` → Information about Antarah ibn Shaddad
+- `Poet of Wisdom` → Information about Zuhayr
+
+### 3️⃣ General Information
+
+**Examples:**
+- `What are the Mu'allaqat?` → Definition + list of seven poets
+- `How are you?` → Friendly response
+- `Who are you?` → Bot introduction
 
 ---
 
@@ -246,20 +294,21 @@ python rebuild_index.py
 ```
 Tarjuman/
 ├── api/                    # FastAPI Backend
-│   └── main.py
+│   └── main.py            # Chat endpoint, poet info, search
 ├── src/retrieval/          # Search Engine
-│   ├── hybrid_search.py
-│   ├── sparse_search.py
-│   ├── dense_search.py
-│   └── embeddings.py
+│   ├── hybrid_search.py   # BM25 + FAISS hybrid search
+│   ├── sparse_search.py   # BM25 keyword search
+│   ├── dense_search.py    # FAISS semantic search
+│   └── embeddings.py      # Embedding model
 ├── data/
-│   ├── raw/                # Source DOCX
-│   ├── processed/          # JSON database
+│   ├── raw/               # Source DOCX
+│   ├── processed/         # JSON database (687 verses)
 │   └── vectordb/          # ChromaDB
-├── tarjuman-ui/            # Next.js Frontend
-├── run_api.py              # API runner
-├── rebuild_index.py        # Rebuild indices
-└── process_docx_v2.py     # Process DOCX
+├── tarjuman-ui/           # Next.js Frontend
+│   └── src/app/page.tsx   # Main chat interface
+├── run_api.py             # API runner
+├── rebuild_index.py       # Rebuild indices
+└── process_docx_v2.py    # Process DOCX
 ```
 
 ---
@@ -267,12 +316,12 @@ Tarjuman/
 ## 🔐 المتغيرات البيئية | Environment Variables
 
 ```bash
-GROQ_API_KEY=gsk_...  # Groq API key for LLM (optional)
+GROQ_API_KEY=gsk_...  # Groq API key (get from console.groq.com)
 ```
 
-**ملاحظة:** المشروع يعمل بدون LLM، لكن التحسين لن يكون متاحاً.
+**ملاحظة:** احصل على مفتاح مجاني من [console.groq.com](https://console.groq.com/)
 
-**Note:** The project works without LLM, but enhancement won't be available.
+**Note:** Get a free key from [console.groq.com](https://console.groq.com/)
 
 ---
 
@@ -281,11 +330,34 @@ GROQ_API_KEY=gsk_...  # Groq API key for LLM (optional)
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/health` | Server health check |
-| POST | `/search` | Search for verses |
-| GET | `/poets` | List of poets |
-| GET | `/examples` | Example verses |
+| POST | `/chat` | **New!** Intelligent chat (poetry + general questions) |
+| POST | `/search` | Search for verses (legacy) |
+| GET | `/poets` | List of poets with stats |
+| GET | `/examples` | Example verses from Mu'allaqat |
 
 **API Documentation:** http://localhost:8000/docs
+
+<div dir="rtl">
+
+### الفرق بين `/chat` و `/search`
+
+- **`/chat`**: نقطة النهاية الجديدة الموحدة - تتعامل مع الأبيات الشعرية والأسئلة العامة
+  - تكتشف الأسئلة العامة تلقائياً (معلومات الشعراء، المعلقات، التحيات)
+  - تبحث عن الأبيات الشعرية في قاعدة البيانات
+  - ترد بشكل ذكي عند عدم العثور على نتائج
+
+- **`/search`**: نقطة النهاية القديمة - للبحث الشعري فقط
+
+</div>
+
+### Difference between `/chat` and `/search`
+
+- **`/chat`**: New unified endpoint - handles both poetry and general questions
+  - Automatically detects general questions (poet info, Mu'allaqat info, greetings)
+  - Searches for poetry verses in database
+  - Intelligently responds when no results found
+
+- **`/search`**: Legacy endpoint - poetry search only
 
 ---
 
@@ -293,100 +365,53 @@ GROQ_API_KEY=gsk_...  # Groq API key for LLM (optional)
 
 <div dir="rtl">
 
-جرّب هذه الأبيات:
+### 📖 جرّب هذه الأبيات الشعرية:
 
-1. `قِفا نبك من ذِكرى حبيبٍ ومنزل`
-2. `عفت الديار محلها فمقامها`
-3. `هل غادر الشعراء من متردم`
-4. `ألا هبي بصحنك فاصبحينا`
-5. `آذنتنا ببينها أسماء`
+1. `قِفا نبك من ذِكرى حبيبٍ ومنزل` - امرؤ القيس
+2. `لخولة أطلال ببرقة ثهمد` - طرفة بن العبد
+3. `أمن أم أوفى دمنة لم تكلم` - زهير بن أبي سلمى
+4. `عفت الديار محلها فمقامها` - لبيد بن ربيعة
+5. `ألا هبي بصحنك فاصبحينا` - عمرو بن كلثوم
+6. `هل غادر الشعراء من متردم` - عنترة بن شداد
+7. `آذنتنا ببينها أسماء` - الحارث بن حلزة
 
-</div>
+### 👤 جرّب السؤال عن الشعراء:
 
-Try these verses:
+1. `من هو امرؤ القيس؟`
+2. `الفارس الشاعر` (عنترة)
+3. `شاعر الحكمة` (زهير)
+4. `اخبرني عن لبيد`
 
-1. `قِفا نبك من ذِكرى حبيبٍ ومنزل`
-2. `عفت الديار محلها فمقامها`
-3. `هل غادر الشعراء من متردم`
-4. `ألا هبي بصحنك فاصبحينا`
-5. `آذنتنا ببينها أسماء`
+### 📚 جرّب الأسئلة العامة:
 
----
-
-## 🤝 المساهمة | Contributing
-
-<div dir="rtl">
-
-نرحب بمساهماتكم! يرجى:
-
-1. Fork المشروع
-2. إنشاء branch جديد (`git checkout -b feature/AmazingFeature`)
-3. Commit التغييرات (`git commit -m 'Add some AmazingFeature'`)
-4. Push للـ branch (`git push origin feature/AmazingFeature`)
-5. فتح Pull Request
+1. `ما هي المعلقات؟`
+2. `من أنت؟`
+3. `كيف حالك؟`
 
 </div>
 
-Contributions are welcome! Please:
+### 📖 Try these poetry verses:
 
-1. Fork the project
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
+1. `قِفا نبك من ذِكرى حبيبٍ ومنزل` - Imru' al-Qais
+2. `لخولة أطلال ببرقة ثهمد` - Tarafa
+3. `أمن أم أوفى دمنة لم تكلم` - Zuhayr
+4. `عفت الديار محلها فمقامها` - Labid
+5. `ألا هبي بصحنك فاصبحينا` - Amr ibn Kulthum
+6. `هل غادر الشعراء من متردم` - Antarah
+7. `آذنتنا ببينها أسماء` - Al-Harith
 
----
+### 👤 Try asking about poets:
 
-## 📄 الترخيص | License
+1. `Who is Imru' al-Qais?`
+2. `The Warrior Poet` (Antarah)
+3. `Poet of Wisdom` (Zuhayr)
+4. `Tell me about Labid`
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+### 📚 Try general questions:
 
----
-
-## 👤 المؤلف | Author
-
-**عمر النوسيان | Omar Alnosyan**
-
-- GitHub: [@omarAlnosyan](https://github.com/omarAlnosyan)
-
----
-
-## 🙏 شكر وتقدير | Acknowledgments
-
-<div dir="rtl">
-
-- **شرح المعلقات السبع للزوزني** - المصدر الأساسي للبيانات
-- **Groq** - لتوفير API سريع لـ Llama 3.3
-- **LangChain** - لإطار عمل RAG
-- **ChromaDB** - لقاعدة بيانات الـ Vectors
-
-</div>
-
-- **Al-Zawzani's Commentary** - Primary data source
-- **Groq** - For fast Llama 3.3 API
-- **LangChain** - For RAG framework
-- **ChromaDB** - For vector database
-
----
-
-## 📊 الإحصائيات | Statistics
-
-- **Total Verses:** 687
-- **Poets:** 7
-- **Poems:** 7
-- **Database Size:** ~5 MB
-- **Search Latency:** < 3 seconds
-- **LLM Response:** < 5 seconds
-
----
-
-## 🔗 روابط مفيدة | Useful Links
-
-- [Architecture Diagram](ARCHITECTURE_DIAGRAM.md)
-- [View Diagrams](view_diagrams.html)
-- [FastAPI Docs](https://fastapi.tiangolo.com/)
-- [Next.js Docs](https://nextjs.org/docs)
-- [Groq API](https://console.groq.com/)
+1. `What are the Mu'allaqat?`
+2. `Who are you?`
+3. `How are you?`
 
 ---
 
