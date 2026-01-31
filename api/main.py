@@ -26,9 +26,16 @@ class SearchRequest(BaseModel):
     query: str = Field(..., description="النص المراد البحث عنه (بيت شعري أو جزء منه)")
 
 
+class HistoryMessage(BaseModel):
+    """رسالة في سجل المحادثة"""
+    role: str = Field(..., description="دور المرسل: user أو assistant")
+    content: str = Field(..., description="نص الرسالة")
+
+
 class ChatRequest(BaseModel):
     """طلب محادثة"""
     query: str = Field(..., description="الاستعلام (بيت شعري أو سؤال)")
+    history: Optional[List[HistoryMessage]] = Field(default_factory=list, description="آخر رسائل المحادثة للسياق")
 
 
 class SearchResultItem(BaseModel):
@@ -121,7 +128,7 @@ async def startup_event():
     """تحميل الموارد عند بدء السيرفر"""
     print("[*] Loading Tarjuman API...")
     
-    # تحميل قاعدة البيانات
+    # تحميل قاعدة البيانات (المعلقات السبع)
     chunks_path = ROOT_DIR / "data" / "processed" / "all_chunks_final.json"
     vectordb_path = ROOT_DIR / "data" / "vectordb"
     
@@ -129,7 +136,6 @@ async def startup_event():
         from src.retrieval.hybrid_search import create_hybrid_retriever
         import json
         
-        # تحميل الـ Retriever
         AppState.retriever = create_hybrid_retriever(
             chunks_path=str(chunks_path),
             vectordb_path=str(vectordb_path),
@@ -232,19 +238,29 @@ def is_general_question(query: str) -> bool:
     التحقق من أن الاستعلام سؤال عام وليس بيت شعري
     """
     query_lower = query.lower().strip()
-    
-    # أسئلة عامة واضحة
+    query_clean = _strip_harakat(_normalize_arabic(query_lower))
+
+    # استثناء صريح: "هل غادر الشعراء" أو "هل غادر الشعراء من متردم" — بيت عنترة، لا سؤال عام
+    if ("غادر" in query_clean and "متردم" in query_clean) or ("غادر" in query_clean and "الشعراء" in query_clean):
+        return False
+
+    # أسئلة عامة واضحة + متابعات حوارية (لا تُعامل كبحث عن بيت)
     general_patterns = [
-        "كيف حالك", "كيفك", "كيف الحال",
+        "كيف حالك", "كيفك", "كيف الحال", "وشلونك", "شلونك", "وش اخبارك", "شخبارك",
         "من أنت", "مين انت", "ما اسمك", "من انت", "وش اسمك",
-        "مرحبا", "السلام عليكم", "اهلا", "هاي", "hello", "hi",
+        "مرحبا", "السلام عليكم", "سلام عليكم", "اهلا", "هاي", "hello", "hi",
         "شكرا", "مشكور", "thanks", "thank you",
         "ماذا تفعل", "وش تسوي", "ما عملك", "وش تقدر تسوي",
         "من هو", "من هي", "مين هو", "وش قصة", "ليه كتب", "لماذا كتب",
         "عن الشاعر", "معلومات عن", "اخبرني عن", "حدثني عن",
         "ما المطلوب", "وش المطلوب", "ماذا اكتب", "وش اكتب", "كيف استخدمك",
         "ما هي المعلقات", "وش المعلقات", "ايش المعلقات", "المعلقات السبع",
-        "help", "مساعدة", "ساعدني"
+        "help", "مساعدة", "ساعدني",
+        # متابعات حوارية — تُوجّه للمحادثة (مع history) وليس للبحث عن بيت
+        "وضح اكثر", "وضّح أكثر", "وضح أكثر", "واضح اكثر",
+        "اشرح اكثر", "اشرح أكثر", "تفصيل اكثر", "تفصيل أكثر",
+        "اكثر تفصيلا", "أكثر تفصيلاً", "زدني", "ماذا تقصد", "ماذا تقصد؟",
+        "ايش تقصد", "ممكن توضح", "هل يمكن التوضيح"
     ]
     
     # أسماء وألقاب الشعراء - إذا كان الاستعلام اسم شاعر فقط
@@ -312,9 +328,83 @@ def get_poet_info(poet_name: str) -> str:
     # البحث عن الشاعر بأسماء مختلفة
     for key, info in poets_info.items():
         if key in poet_name or poet_name in info["name"]:
-            return f"**{info['name']}**\n\n{info['info']}\n\n**عن معلقته:**\n{info['muallaqah']}"
+            label = "عن معلقته:" if "معلقة" in info.get("muallaqah", "") else "من شعره:"
+            return f"**{info['name']}**\n\n{info['info']}\n\n**{label}**\n{info['muallaqah']}"
     
     return None
+
+
+def _normalize_arabic(text: str) -> str:
+    """توحيد ي/ى للتطابق."""
+    return text.replace('\u0649', '\u064a')  # ى -> ي
+
+
+def _strip_harakat(text: str) -> str:
+    """إزالة التشكيل (الحركات) وحرف التطويل من النص لتحسين التطابق."""
+    if not text:
+        return text
+    # إزالة التطويل (ـ U+0640) أولاً ثم الحركات
+    text = text.replace('\u0640', '')  # كشيدة/تطويل
+    # نطاق حركات التشكيل في Unicode
+    return ''.join(c for c in text if not ('\u064B' <= c <= '\u0652' or c in '\u0670\u0617\u0618\u0619\u061A'))
+
+
+def is_explain_request_without_verse(query: str) -> bool:
+    """
+    طلبات شرح/معنى بدون بيت أو كلمات من البيت — نطلب من المستخدم إعطاء بيت.
+    مثل: اشرح لي، ما معنى، ما المقصود، شرح، حدثني، أخبرني، ساعدني (بدون ذكر بيت).
+    إذا جاء بعد الطلب كلمات من بيت (نص عربي فعلي) لا نعتبره "بدون بيت".
+    """
+    q = query.strip()
+    q_clean = q.replace("؟", "").replace("?", "").strip()
+    if len(q_clean) > 40:  # نص طويل غالباً فيه بيت
+        return False
+    explain_only_patterns = [
+        "اشرح لي", "اشرح", "ما معنى", "ما المقصود", "ماهو معنى", "ما هو معنى",
+        "تحدث", "حدثني", "أخبرني", "اخبرني", "ساعدني", "وضح", "ما معني",
+        "شرح لي", "المقصود"
+    ]
+    q_lower = q_clean.lower()
+    for p in explain_only_patterns:
+        if q_lower == p:
+            return True
+        if q_lower.startswith(p + " ") or q_lower.startswith(p + "؟"):
+            remainder = q_clean[len(p):].strip()
+            # إذا بقي نص عربي (كلمة أو أكثر) نعتبره ذكراً لبيت/كلمات
+            remainder_arabic = "".join(c for c in remainder if "\u0600" <= c <= "\u06FF")
+            if len(remainder_arabic) >= 3:  # كلمة عربية على الأقل
+                return False
+            return True
+    return False
+
+
+def _find_verse_in_chunks_by_keywords(query: str, chunks: list) -> Optional[dict]:
+    """
+    بحث خطي في الـ chunks: إذا كان الاستعلام (ناقص أو كامل) يطابق بيتاً في verse_text
+    نرجعه. يُستخدم كـ fallback عندما يفشل الـ retriever (مثل لخولة أطلال، آذنتنا ببينها أسماء).
+    """
+    if not query or not chunks:
+        return None
+    q_clean = _strip_harakat(_normalize_arabic(query.strip()))
+    if len(q_clean) < 3:
+        return None
+    q_words = [w for w in q_clean.split() if len(w) >= 2]
+    best_chunk = None
+    best_score = 0
+    for chunk in chunks:
+        vt = chunk.get("verse_text") or ""
+        v_clean = _strip_harakat(_normalize_arabic(vt))
+        if not v_clean:
+            continue
+        # تطابق كامل: الاستعلام جزء من البيت
+        if q_clean in v_clean:
+            return chunk
+        # تطابق بالكلمات: عدد كلمات الاستعلام الموجودة في البيت
+        matches = sum(1 for w in q_words if w in v_clean)
+        if matches >= 2 and matches > best_score:
+            best_score = matches
+            best_chunk = chunk
+    return best_chunk
 
 
 def get_friendly_response(query: str) -> str:
@@ -322,16 +412,17 @@ def get_friendly_response(query: str) -> str:
     ردود ودودة ومرنة على الأسئلة العامة
     """
     query_lower = query.lower().strip()
+    query_norm = _normalize_arabic(query_lower)
     
-    # ردود على التحيات والأسئلة الشخصية
-    if any(word in query_lower for word in ["كيف حالك", "كيفك", "كيف الحال"]):
+    # ردود على التحيات والأسئلة الشخصية (بما فيها العامية)
+    if any(word in query_lower for word in ["كيف حالك", "كيفك", "كيف الحال", "وشلونك", "شلونك", "وش اخبارك", "شخبارك"]):
         return "الحمدلله، أنا ترجمان، مساعدك الذكي في شرح الشعر الفصيح. كيف أقدر أساعدك اليوم؟"
     
     if any(word in query_lower for word in ["من أنت", "مين انت", "ما اسمك", "من انت", "وش اسمك"]) and "الشاعر" not in query_lower:
         return "أنا ترجمان، مساعدك المتخصص في شرح الشعر العربي القديم والمعلقات. أنا هنا لمساعدتك في فهم الأبيات الشعرية من خلال شروحات موثوقة من أمهات الكتب."
     
-    if any(word in query_lower for word in ["مرحبا", "السلام عليكم", "اهلا", "هاي", "hello", "hi"]):
-        return "أهلاً وسهلاً! أنا ترجمان، مساعدك في شرح الشعر الفصيح. تفضل بإلقاء بيت شعري أو اسألني عما بدا لك."
+    if any(word in query_lower for word in ["مرحبا", "السلام عليكم", "سلام عليكم", "اهلا", "هاي", "hello", "hi"]):
+        return "أهلاً وسهلاً! وعليكم السلام. أنا ترجمان، مساعدك في شرح الشعر الفصيح. تفضل بإلقاء بيت شعري أو اسألني عما بدا لك."
     
     if any(word in query_lower for word in ["شكرا", "مشكور", "thanks", "thank you"]):
         return "العفو! أنا دائماً هنا لمساعدتك في فهم الشعر العربي. هل لديك بيت آخر تريد شرحه؟"
@@ -348,10 +439,10 @@ def get_friendly_response(query: str) -> str:
 • من هو عنترة؟
 • ما هي المعلقات؟"""
     
-    # أسئلة عن الشعراء
+    # أسئلة عن الشعراء (استخدام النص الموحد ي/ى لتفادي فشل التطابق)
     poets_names = ["امرؤ القيس", "امرئ القيس", "طرفة", "زهير", "لبيد", "عمرو بن كلثوم", "عمرو", "عنترة", "الحارث"]
     for poet in poets_names:
-        if poet in query_lower:
+        if _normalize_arabic(poet) in query_norm or poet in query_lower:
             poet_info = get_poet_info(poet)
             if poet_info:
                 return poet_info
@@ -373,6 +464,73 @@ def get_friendly_response(query: str) -> str:
     
     # رد افتراضي ودود
     return "أنا ترجمان، مساعدك المتخصص في شرح الشعر العربي القديم. أنا هنا لمساعدتك في فهم الأبيات الشعرية من المعلقات السبع. تفضل بإرسال بيت شعري أو اسألني عن أحد الشعراء!"
+
+
+def get_llm_response_with_history(
+    query: str,
+    history: Optional[List] = None,
+    context_hint: Optional[str] = None,
+) -> Optional[str]:
+    """
+    استدعاء الـ LLM مع سجل المحادثة لردود حوارية.
+    history: قائمة من {role: "user"|"assistant", content: str}
+    context_hint: تلميح سياقي (مثلاً: لم نجد البيت في القاعدة).
+    """
+    if not AppState.llm:
+        return None
+    try:
+        from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
+
+        system = """أنت ترجمان، مساعد متخصص في شرح الشعر العربي القديم والمعلقات السبع.
+تجاوب باختصار ووضوح، وبصيغة Markdown عند الحاجة (عناوين، توكيد، قوائم).
+
+أجب بالعربية الفصحى فقط. لا تستخدم أبداً حروفاً أو كلمات من لغات أخرى (مثل الصينية أو الإنجليزية) في جسم الرد.
+
+المعلقات السبع المعتمدة هنا (ولا غيرها) هي لسبعة شعراء فقط ولا غيرهم أبداً:
+امرؤ القيس، طرفة بن العبد، زهير بن أبي سلمى، لبيد بن ربيعة، عمرو بن كلثوم، عنترة بن شداد، الحارث بن حلزة.
+لا تذكر أبداً: عبيد بن الأبرص، العجاج، نابغة الذبياني، علقمة بن عبدة، أو أي اسم آخر غير السبعة المذكورين أعلاه.
+
+إذا طُلِب منك «وضّح أكثر» أو «زدني» فاعتمد آخر ما تم التحدث عنه في المحادثة ووضحه أو زد عليه.
+لا تختلق أبياتاً غير موجودة؛ إذا لم تعرف، قل ذلك بأدب."""
+        if context_hint:
+            system += f"\n\nملاحظة سياق: {context_hint}"
+
+        messages = [SystemMessage(content=system)]
+        h = (history or [])[-8:]
+        for m in h:
+            role = getattr(m, "role", None) or (m.get("role") if isinstance(m, dict) else None)
+            content = getattr(m, "content", None) or (m.get("content") if isinstance(m, dict) else "") or ""
+            if role == "user":
+                messages.append(HumanMessage(content=content))
+            elif role == "assistant":
+                messages.append(AIMessage(content=content))
+        messages.append(HumanMessage(content=query))
+
+        out = AppState.llm.invoke(messages)
+        if hasattr(out, "content") and out.content:
+            text = out.content.strip()
+            # إزالة حروف من لغات أخرى (مثل الصينية) إن تسربت إلى الرد
+            text = _keep_arabic_and_latin(text)
+            return text if text else None
+        return None
+    except Exception as e:
+        print(f"[DEBUG] LLM with history error: {e}")
+        return None
+
+
+def _keep_arabic_and_latin(text: str) -> str:
+    """الإبقاء على الحروف العربية واللاتينية والأرقام وعلامات الترقيم الشائعة فقط."""
+    if not text:
+        return text
+    result = []
+    for c in text:
+        if '\u0600' <= c <= '\u06FF':  # عربي
+            result.append(c)
+        elif 'A' <= c <= 'Z' or 'a' <= c <= 'z':  # لاتيني
+            result.append(c)
+        elif c.isdigit() or c in ' \n\t.,;:!?\-–—\'\"()[]{}•·*#\u200c\u200d':
+            result.append(c)
+    return ''.join(result)
 
 
 # ===== API Endpoints =====
@@ -527,30 +685,145 @@ async def chat(request: ChatRequest):
             response="يرجى إدخال استعلام أطول."
         )
     
-    # التحقق من الأسئلة العامة أولاً
-    if is_general_question(query):
-        friendly_response = get_friendly_response(query)
+    # تحويل السجل لاستخدامه مع LLM (قائمة كائنات لها role و content)
+    history_list = [{"role": m.role, "content": m.content} for m in (request.history or [])]
+
+    query_lower = query.lower().strip()
+    query_norm = _normalize_arabic(query_lower)
+
+    # طلبات شرح/معنى بدون ذكر بيت — نطلب إعطاء بيت
+    if is_explain_request_without_verse(query):
         return ChatResponse(
             type="chat",
-            response=friendly_response
+            response="أعطني بيتاً أو كلمات من البيت لأشرحه لك من المعلقات السبع."
         )
+
+    # أسئلة عن المعلقات: رد ثابت دائماً (قائمة صحيحة فقط — لا LLM أبداً)
+    if "المعلقات" in query_norm or "المعلقه" in query_norm or "معلقات" in query_norm:
+        _muallaqat_list = """**المعلقات السبع** هي من أشهر وأجود ما قيل في الشعر الجاهلي. سُميت بالمعلقات لأنها كُتبت بماء الذهب وعُلّقت على أستار الكعبة لشدة جودتها.
+
+**الشعراء السبعة:**
+• امرؤ القيس - الملك الضليل
+• طرفة بن العبد - شاعر الناقة
+• زهير بن أبي سلمى - شاعر الحكمة
+• لبيد بن ربيعة - أدرك الإسلام
+• عمرو بن كلثوم - شاعر الفخر
+• عنترة بن شداد - الفارس الشاعر
+• الحارث بن حلزة - شاعر القبيلة
+
+تفضل بإرسال بيت شعري أو اسألني عن أي شاعر!"""
+        return ChatResponse(type="chat", response=_muallaqat_list)
+
+    # استثناء: "هل غادر الشعراء من متردم" (أو "هل غادر الشعراء") — بيت عنترة: بحث مباشر في الـ chunks
+    query_clean = _strip_harakat(query_norm)
+    is_ghader_verse = ("غادر" in query_clean and "متردم" in query_clean) or ("غادر" in query_clean and "الشعراء" in query_clean)
+    if is_ghader_verse and AppState.chunks:
+        for chunk in AppState.chunks:
+            vt = chunk.get("verse_text") or ""
+            v_clean = _strip_harakat(_normalize_arabic(vt))
+            if "غادر" in v_clean and "متردم" in v_clean:
+                db_explanation = chunk.get("text", "")
+                explanation = enhance_explanation(vt, db_explanation, chunk.get("poet_name", ""))
+                src = chunk.get("source") or {}
+                source_book = src.get("book", "شرح المعلقات السبع للزوزني") if isinstance(src, dict) else "شرح المعلقات السبع للزوزني"
+                item = SearchResultItem(
+                    chunk_id=str(chunk.get("chunk_id", "")),
+                    poet_name=chunk.get("poet_name") or "عنترة بن شداد",
+                    poem_name=chunk.get("poem_name") or "معلقة عنترة",
+                    verse_number=int(chunk.get("verse_number", 0)),
+                    verse_text=vt,
+                    explanation=explanation,
+                    source_title=source_book,
+                    source_page=None,
+                    score=1.0,
+                )
+                return ChatResponse(type="poetry", result=item)
+
+    # التحقق من الأسئلة العامة (تحيات، من أنت، ما اسمك، شعراء، إلخ)
+    if is_general_question(query):
+        # "من هو / من هي" + اسم شاعر: رد ثابت من get_poet_info (لا LLM أبداً)
+        poets_refs_first = ["امرؤ القيس", "امرئ القيس", "طرفة", "زهير", "لبيد", "عمرو بن كلثوم", "عمرو", "عنترة", "الحارث"]
+        if ("من هو" in query_lower or "من هي" in query_lower) and any(p in query_lower for p in poets_refs_first):
+            friendly = get_friendly_response(query)
+            if friendly:
+                return ChatResponse(type="chat", response=friendly)
+        # تحيات وردود ثابتة: نعتمد get_friendly_response لضمان رد موحد (لا بحث شعري ولا LLM عشوائي)
+        static_patterns = [
+            "سلام عليكم", "السلام عليكم", "مرحبا", "اهلا", "هاي", "hello", "hi",
+            "كيف حالك", "كيفك", "وشلونك", "شلونك", "وش اخبارك", "شخبارك",
+            "من أنت", "مين انت", "ما اسمك", "من انت", "وش اسمك",
+            "شكرا", "مشكور", "thanks", "ماذا تفعل", "وش تسوي", "ما عملك", "مساعدة", "help"
+        ]
+        if any(p in query_lower for p in static_patterns):
+            friendly = get_friendly_response(query)
+            if friendly:
+                return ChatResponse(type="chat", response=friendly)
+        # أسئلة عن شاعر من السبعة: رد موحد صحيح
+        poets_refs = ["امرؤ القيس", "امرئ القيس", "طرفة", "زهير", "لبيد", "عمرو بن كلثوم", "عمرو", "عنترة", "الحارث"]
+        if any(p in query_lower for p in poets_refs):
+            friendly = get_friendly_response(query)
+            if friendly:
+                return ChatResponse(type="chat", response=friendly)
+        # متابعات (وضّح أكثر، زدني، ماذا تقصد...) نستخدم LLM مع السجل
+        llm_reply = get_llm_response_with_history(query, history=history_list)
+        if llm_reply:
+            return ChatResponse(type="chat", response=llm_reply)
+        friendly_response = get_friendly_response(query)
+        return ChatResponse(type="chat", response=friendly_response)
     
     # محاولة البحث عن بيت شعري
     try:
-        # تحسين البحث لدعم فهم الكلمات باختلاف السياقات
-        # البحث بطرق متنوعة: تطابق النص + معنى الأبيات
-        results = AppState.retriever.search(query, k=1, score_threshold=0.0)
-        
+        # لاستعلامات معروفة (مثل "هل غادر الشعراء من متردم") نسترجع عدة نتائج ونختار الأنسب
+        k_search = 5
+        if "غادر" in query_norm and "متردم" in query_norm:
+            k_search = 8
+        results = AppState.retriever.search(query, k=k_search, score_threshold=0.0)
+
+        # إن كان الاستعلام يحتوي "غادر" و"متردم" نختار أول نتيجة تحتوي البيت (عنترة)، وإلا نترك النتائج فارغة للانتقال للـ fallback
+        if results and "غادر" in query_norm and "متردم" in query_norm:
+            found_ghader = None
+            for candidate in results:
+                v_clean = _strip_harakat(_normalize_arabic(candidate.verse_text or ""))
+                if "غادر" in v_clean and "متردم" in v_clean:
+                    found_ghader = candidate
+                    break
+            if found_ghader:
+                results = [found_ghader]
+            else:
+                results = []  # لم نجد البيت في نتائج المحرك → نستخدم fallback (بحث مباشر في chunks)
+        if not results:
+            results = []
+
         if results and len(results) > 0:
             r = results[0]
-            
             # طباعة للتشخيص
             print(f"[DEBUG] Query: {query}")
             print(f"[DEBUG] Top result score: {r.score}")
-            print(f"[DEBUG] Verse: {r.verse_text[:50]}...")
-            
+            print(f"[DEBUG] Verse: {r.verse_text[:50] if r.verse_text else ''}...")
+            # إن اخترنا نتيجة لـ "غادر" و"متردم" نعتبرها مطابقة حتى لو الدرجة منخفضة
+            force_verse_match = (
+                "غادر" in query_norm and "متردم" in query_norm and r.verse_text and
+                "غادر" in _strip_harakat(_normalize_arabic(r.verse_text)) and
+                "متردم" in _strip_harakat(_normalize_arabic(r.verse_text))
+            )
             # التحقق من جودة النتيجة (score threshold منخفض جداً لدعم البحث الدلالي)
-            if r.score >= 0.1:  # threshold منخفض جداً للسماح بالبحث الدلالي
+            if r.score >= 0.1 or force_verse_match:  # threshold منخفض أو مطابقة صريحة لبيت "غادر/متردم"
+                # تجنب إرجاع بيت خاطئ: إذا الاستعلام فيه 3+ كلمات والبيت المُرجع لا يحتوي على كلمتين على الأقل منه، اعتبره غير مطابق (ما عدا المطابقة الصريحة)
+                if not force_verse_match:
+                    query_words = set(_normalize_arabic(q) for q in query.split() if len(q.strip()) > 1)
+                    verse_norm = _normalize_arabic(r.verse_text or "")
+                    overlap = sum(1 for w in query_words if w in verse_norm)
+                else:
+                    overlap = 2  # تجاوز فحص التداخل عند المطابقة الصريحة
+                if not force_verse_match and len(query_words) >= 3 and overlap < 2:
+                    hint = "لم نجد البيت في قاعدة المعلقات؛ المستخدم قد يريد متابعة أو سؤالاً آخر."
+                    llm_reply = get_llm_response_with_history(query, history=history_list, context_hint=hint)
+                    if llm_reply:
+                        return ChatResponse(type="chat", response=llm_reply)
+                    return ChatResponse(
+                        type="chat",
+                        response=f"لم أعثر على هذا البيت في قاعدة بياناتي. أنا متخصص في المعلقات السبع:\n\n• امرؤ القيس • طرفة • زهير • لبيد • عمرو بن كلثوم • عنترة • الحارث بن حلزة\n\nجرّب بيتاً من أحد هؤلاء الشعراء."
+                    )
                 # استخراج الشرح من قاعدة البيانات
                 db_explanation = r.text
                 
@@ -576,10 +849,13 @@ async def chat(request: ChatRequest):
                 )
             else:
                 print(f"[DEBUG] Score {r.score} below threshold 0.1")
-                # رسالة واضحة للمستخدم
+                hint = "لم نجد البيت في قاعدة المعلقات."
+                llm_reply = get_llm_response_with_history(query, history=history_list, context_hint=hint)
+                if llm_reply:
+                    return ChatResponse(type="chat", response=llm_reply)
                 return ChatResponse(
                     type="chat",
-                    response=f"لم أعثر على هذا البيت في قاعدة بياناتي. أنا متخصص في المعلقات السبع فقط:\n\n• امرؤ القيس\n• طرفة بن العبد\n• زهير بن أبي سلمى\n• لبيد بن ربيعة\n• عمرو بن كلثوم\n• عنترة بن شداد\n• الحارث بن حلزة\n\nجرّب بيتاً من أحد هؤلاء الشعراء."
+                    response=f"لم أعثر على هذا البيت في قاعدة بياناتي. أنا متخصص في المعلقات السبع:\n\n• امرؤ القيس • طرفة • زهير • لبيد • عمرو بن كلثوم • عنترة • الحارث بن حلزة\n\nجرّب بيتاً من أحد هؤلاء الشعراء."
                 )
     except Exception as e:
         # في حالة خطأ في البحث، نتابع للرد الودود
@@ -587,11 +863,60 @@ async def chat(request: ChatRequest):
         import traceback
         traceback.print_exc()
         pass
-    
-    # إذا لم يُعثر على نتائج، رسالة واضحة
+
+    # Fallback لبيت "هل غادر الشعراء (من متردم)": بحث مباشر في القطع إن فشل المحرك
+    if is_ghader_verse and AppState.chunks:
+        for chunk in AppState.chunks:
+            vt = chunk.get("verse_text") or ""
+            v_clean = _strip_harakat(_normalize_arabic(vt))
+            if "غادر" in v_clean and "متردم" in v_clean:
+                db_explanation = chunk.get("text", "")
+                explanation = enhance_explanation(vt, db_explanation, chunk.get("poet_name", ""))
+                src = chunk.get("source") or {}
+                source_book = src.get("book", "شرح المعلقات السبع للزوزني") if isinstance(src, dict) else "شرح المعلقات السبع للزوزني"
+                item = SearchResultItem(
+                    chunk_id=str(chunk.get("chunk_id", "")),
+                    poet_name=chunk.get("poet_name") or "عنترة بن شداد",
+                    poem_name=chunk.get("poem_name") or "معلقة عنترة",
+                    verse_number=int(chunk.get("verse_number", 0)),
+                    verse_text=vt,
+                    explanation=explanation,
+                    source_title=source_book,
+                    source_page=None,
+                    score=1.0,
+                )
+                return ChatResponse(type="poetry", result=item)
+
+    # Fallback عام: بحث بالكلمات المفتاحية في الـ chunks (لخولة أطلال، آذنتنا ببينها، بيت ناقص، إلخ)
+    if AppState.chunks and len(query.strip()) >= 4:
+        found_chunk = _find_verse_in_chunks_by_keywords(query, AppState.chunks)
+        if found_chunk:
+            vt = found_chunk.get("verse_text") or ""
+            db_explanation = found_chunk.get("text", "")
+            explanation = enhance_explanation(vt, db_explanation, found_chunk.get("poet_name", ""))
+            src = found_chunk.get("source") or {}
+            source_book = src.get("book", "شرح المعلقات السبع للزوزني") if isinstance(src, dict) else "شرح المعلقات السبع للزوزني"
+            item = SearchResultItem(
+                chunk_id=str(found_chunk.get("chunk_id", "")),
+                poet_name=found_chunk.get("poet_name") or "غير معروف",
+                poem_name=found_chunk.get("poem_name") or "غير معروف",
+                verse_number=int(found_chunk.get("verse_number", 0)),
+                verse_text=vt,
+                explanation=explanation,
+                source_title=source_book,
+                source_page=None,
+                score=0.9,
+            )
+            return ChatResponse(type="poetry", result=item)
+
+    # إذا لم يُعثر على نتائج، محاولة رد حواري عبر LLM
+    hint = "لم نجد البيت في قاعدة المعلقات."
+    llm_reply = get_llm_response_with_history(query, history=history_list, context_hint=hint)
+    if llm_reply:
+        return ChatResponse(type="chat", response=llm_reply)
     return ChatResponse(
         type="chat",
-        response=f"لم أعثر على هذا البيت في قاعدة بياناتي. أنا متخصص في المعلقات السبع فقط:\n\n• امرؤ القيس - معلقة امرئ القيس\n• طرفة بن العبد - معلقة طرفة\n• زهير بن أبي سلمى - معلقة زهير\n• لبيد بن ربيعة - معلقة لبيد\n• عمرو بن كلثوم - معلقة عمرو\n• عنترة بن شداد - معلقة عنترة\n• الحارث بن حلزة - معلقة الحارث\n\nتفضل بإرسال بيت من أحد هؤلاء الشعراء."
+        response=f"لم أعثر على هذا البيت في قاعدة بياناتي. أنا متخصص في المعلقات السبع:\n\n• امرؤ القيس • طرفة • زهير • لبيد • عمرو بن كلثوم • عنترة • الحارث بن حلزة\n\nتفضل بإرسال بيت من أحد هؤلاء الشعراء."
     )
 
 
