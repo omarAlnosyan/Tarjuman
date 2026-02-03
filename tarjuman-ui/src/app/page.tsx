@@ -151,24 +151,6 @@ export default function Home() {
     text: 'أنا ترجمان، مساعدك المتخصص في شرح الشعر العربي القديم والمعلقات. أنا هنا لمساعدتك في فهم الأبيات الشعرية من خلال شروحات موثوقة من أمهات الكتب.\n\nجرّب الأمثلة أدناه'
   };
 
-  const loadStoredMessages = useCallback((): Message[] => {
-    if (typeof window === 'undefined') return [initialBotMessage];
-    try {
-      const raw = localStorage.getItem(CHAT_STORAGE_KEY);
-      if (!raw) return [initialBotMessage];
-      const parsed = JSON.parse(raw) as unknown;
-      if (!Array.isArray(parsed) || parsed.length === 0) return [initialBotMessage];
-      const valid = parsed.filter(
-        (m: unknown): m is Message =>
-          typeof m === 'object' && m !== null && 'id' in m && 'role' in m && 'type' in m && 'text' in m &&
-          ['user', 'bot'].includes((m as Message).role) && ['poetry', 'chat'].includes((m as Message).type)
-      );
-      return valid.length ? valid : [initialBotMessage];
-    } catch {
-      return [initialBotMessage];
-    }
-  }, []);
-
   const [showLanding, setShowLanding] = useState(true);
   const [messages, setMessages] = useState<Message[]>(() => [initialBotMessage]);
   const [input, setInput] = useState('');
@@ -192,12 +174,12 @@ export default function Home() {
     } catch { /* ignore */ }
   };
 
+  // لا نحمّل المحادثة من localStorage — كل تشغيل يبدأ بمحادثة جديدة
   useEffect(() => {
+    if (typeof window === 'undefined') return;
     try {
-      setMessages(loadStoredMessages());
-    } catch {
-      setMessages([initialBotMessage]);
-    }
+      localStorage.removeItem(CHAT_STORAGE_KEY);
+    } catch { /* ignore */ }
   }, []);
 
   useEffect(() => {
