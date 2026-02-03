@@ -1,0 +1,24 @@
+# Tarjuman API - FastAPI + RAG (used by Railway; Dockerfile.api used by docker-compose)
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# System deps for some Python packages
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# App and data
+COPY requirements.txt .
+COPY api/ ./api/
+COPY src/ ./src/
+COPY data/ ./data/
+
+# env_template.txt is loaded by api/main.py; GROQ_API_KEY can be set at runtime
+COPY env_template.txt ./
+
+RUN pip install --no-cache-dir -r requirements.txt
+
+# GROQ_API_KEY must be set at runtime (env or env_file)
+EXPOSE 8000
+CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
