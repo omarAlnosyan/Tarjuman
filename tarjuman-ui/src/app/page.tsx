@@ -27,9 +27,11 @@ const EXAMPLES = [
   { text: "ما هي المعلقات؟", short: "ما هي المعلقات؟" },
 ];
 
-const API_BASE_URL = "http://localhost:8000";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 const CHAT_STORAGE_KEY = 'tarjuman_chat';
+const WARNING_DISMISSED_KEY = 'tarjuman_warning_dismissed';
 const MAX_HISTORY_MESSAGES = 10;
+const WARNING_MSG = 'حالياً: المعلقات السبع فقط. قريباً نضيف المزيد من الدواوين والشرح.';
 
 const checkApiHealth = async (): Promise<boolean> => {
   try {
@@ -61,13 +63,18 @@ interface Message {
 
 const chatAPI = async (
   query: string,
-  history: { role: 'user' | 'assistant'; content: string }[] = []
+  history: { role: 'user' | 'assistant'; content: string }[] = [],
+  lastPoetryResult?: { poem_name: string; verse_number: number; poet_name?: string } | null
 ): Promise<{ type: 'poetry' | 'chat'; data?: SearchResult; text?: string; error?: string }> => {
   try {
+    const body: { query: string; history: typeof history; last_poetry_result?: typeof lastPoetryResult } = { query, history };
+    if (lastPoetryResult && lastPoetryResult.poem_name != null && lastPoetryResult.verse_number != null) {
+      body.last_poetry_result = lastPoetryResult;
+    }
     const response = await fetch(`${API_BASE_URL}/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query, history })
+      body: JSON.stringify(body)
     });
     if (!response.ok) {
       let errorMessage = 'حدث خطأ في الاتصال بالخادم';
@@ -168,7 +175,22 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [apiConnected, setApiConnected] = useState<boolean | null>(null);
+  const [warningDismissed, setWarningDismissed] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    try {
+      return localStorage.getItem(WARNING_DISMISSED_KEY) === '1';
+    } catch {
+      return false;
+    }
+  });
   const chatEndRef = useRef<HTMLDivElement>(null);
+
+  const dismissWarning = () => {
+    setWarningDismissed(true);
+    try {
+      localStorage.setItem(WARNING_DISMISSED_KEY, '1');
+    } catch { /* ignore */ }
+  };
 
   useEffect(() => {
     try {
@@ -211,7 +233,16 @@ export default function Home() {
     const history = messages
       .slice(-MAX_HISTORY_MESSAGES)
       .map(m => ({ role: m.role === 'user' ? 'user' as const : 'assistant' as const, content: m.text }));
-    const response = await chatAPI(query, history);
+    const lastMsg = messages[messages.length - 1];
+    const lastPoetryResult =
+      lastMsg?.role === 'bot' && lastMsg?.type === 'poetry' && lastMsg?.data
+        ? {
+            poem_name: lastMsg.data.poem_name,
+            verse_number: lastMsg.data.verse_number,
+            poet_name: lastMsg.data.poet_name
+          }
+        : undefined;
+    const response = await chatAPI(query, history, lastPoetryResult);
     if (response.error) setApiConnected(false);
 
     const botMsg: Message = {
@@ -254,6 +285,10 @@ export default function Home() {
               مساعد متخصص في تحليل وشرح الشعر العربي القديم باستخدام تقنيات الذكاء الاصطناعي،
               مع الاستناد إلى أمهات الكتب التراثية كشرح المعلقات السبع للزوزني.
             </p>
+            <div style={{ marginBottom: '1.5rem', padding: '0.75rem 1rem', background: '#f4ece1', border: '1px solid rgba(212,175,55,0.3)', borderRadius: '0.75rem', fontSize: '0.9375rem', color: '#5c5042', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+              <Info size={18} style={{ color: '#b8860b', flexShrink: 0 }} />
+              <span>حالياً: المعلقات السبع فقط. قريباً نضيف المزيد من الدواوين والشرح.</span>
+            </div>
           </div>
           <button
             onClick={() => setShowLanding(false)}
@@ -319,6 +354,22 @@ export default function Home() {
           </div>
         </div>
       </header>
+
+      {!warningDismissed && (
+        <div className="z-30 flex items-center justify-between gap-3 px-4 py-2.5 bg-[#f4ece1] border-b border-[#d4af37]/20 text-sm text-[#5c5042]">
+          <span className="flex items-center gap-2">
+            <Info size={16} className="text-[#b8860b] flex-shrink-0" />
+            {WARNING_MSG}
+          </span>
+          <button
+            type="button"
+            onClick={dismissWarning}
+            className="flex-shrink-0 px-3 py-1 text-xs font-bold text-[#8b7355] hover:text-[#2c1810] hover:bg-[#d4af37]/10 rounded-lg transition-colors"
+          >
+            تجاهل
+          </button>
+        </div>
+      )}
 
       <div className="flex-1 flex overflow-hidden relative">
         <aside className={`fixed inset-y-0 right-0 z-50 w-72 transform transition-transform duration-300 bg-[#fdfbf7] border-l border-[#d4af37]/10 lg:relative lg:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'}`}>

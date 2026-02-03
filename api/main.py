@@ -6,7 +6,7 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-from typing import List, Optional
+from typing import List, Optional, Literal
 import os
 import sys
 from pathlib import Path
@@ -36,6 +36,10 @@ class ChatRequest(BaseModel):
     """طلب محادثة"""
     query: str = Field(..., description="الاستعلام (بيت شعري أو سؤال)")
     history: Optional[List[HistoryMessage]] = Field(default_factory=list, description="آخر رسائل المحادثة للسياق")
+    last_poetry_result: Optional[dict] = Field(
+        default=None,
+        description="آخر نتيجة شعر (poem_name, verse_number مطلوبان؛ poet_name اختياري) لطلب البيت التالي/السابق"
+    )
 
 
 class SearchResultItem(BaseModel):
@@ -87,6 +91,13 @@ class HealthResponse(BaseModel):
     verse_count: int
 
 
+# رسالة ثابتة عند طلب بيت غير موجود في المعلقات — لا LLM ولا ويب
+VERSE_NOT_IN_MUALLAQAT_MSG = (
+    "هذا البيت ليس من المعلقات السبع. أنا أبحث فقط في المعلقات السبع (687 بيت). "
+    "جرّب بيتاً من أحد الشعراء السبعة: امرؤ القيس، طرفة، زهير، لبيد، عمرو بن كلثوم، عنترة، الحارث بن حلزة."
+)
+
+
 # ===== FastAPI App =====
 
 app = FastAPI(
@@ -97,10 +108,12 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
-# CORS
+# CORS: في Production ضع CORS_ORIGINS=https://your-app.vercel.app,https://...
+_cors_origins = os.getenv("CORS_ORIGINS", "*").strip()
+allow_origins = ["*"] if _cors_origins == "*" else [o.strip() for o in _cors_origins.split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # في Production غيّرها للدومين الصحيح
+    allow_origins=allow_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -347,6 +360,63 @@ def _strip_harakat(text: str) -> str:
     text = text.replace('\u0640', '')  # كشيدة/تطويل
     # نطاق حركات التشكيل في Unicode
     return ''.join(c for c in text if not ('\u064B' <= c <= '\u0652' or c in '\u0670\u0617\u0618\u0619\u061A'))
+
+
+def is_next_or_previous_verse_request(query: str) -> Optional[Literal["next", "previous"]]:
+    """
+    كشف طلب البيت التالي أو السابق (مثل: عطني اللي بعده، اللي قبله).
+    """
+    q = query.strip()
+    if not q:
+        return None
+    q_lower = q.lower().strip()
+    q_norm = _strip_harakat(_normalize_arabic(q_lower))
+    next_patterns = [
+        "اللي بعده", "اللي بعدها", "البيت التالي", "التالي", "اعطني اللي بعده",
+        "اعطني التالي", "البيت اللي بعده", "اللي بعده", "بعديه", "البيت بعده"
+    ]
+    prev_patterns = [
+        "اللي قبله", "اللي قبلها", "البيت السابق", "السابق", "اعطني اللي قبله",
+        "اعطني السابق", "البيت اللي قبله", "اللي قبله", "قبله", "البيت قبله"
+    ]
+    for p in next_patterns:
+        if _normalize_arabic(p) in q_norm or p in q_lower:
+            return "next"
+    for p in prev_patterns:
+        if _normalize_arabic(p) in q_norm or p in q_lower:
+            return "previous"
+    return None
+
+
+def get_adjacent_verse(
+    chunks: list,
+    poem_name: str,
+    verse_number: int,
+    direction: Literal["next", "previous"]
+) -> Optional[dict]:
+    """
+    جلب البيت المجاور (التالي أو السابق) في نفس القصيدة.
+    يرجع أول chunk يطابق poem_name و verse_number المجاور، أو None إذا نهاية/بداية القصيدة.
+    """
+    poem_chunks = [c for c in chunks if (c.get("poem_name") or "").strip() == (poem_name or "").strip()]
+    if not poem_chunks:
+        return None
+    verse_numbers_sorted = sorted(set(int(c.get("verse_number", 0)) for c in poem_chunks))
+    try:
+        idx = verse_numbers_sorted.index(verse_number)
+    except ValueError:
+        return None
+    if direction == "next":
+        adj_idx = idx + 1
+    else:
+        adj_idx = idx - 1
+    if adj_idx < 0 or adj_idx >= len(verse_numbers_sorted):
+        return None
+    target_verse = verse_numbers_sorted[adj_idx]
+    for c in poem_chunks:
+        if int(c.get("verse_number", 0)) == target_verse:
+            return c
+    return None
 
 
 def is_explain_request_without_verse(query: str) -> bool:
@@ -691,6 +761,52 @@ async def chat(request: ChatRequest):
     query_lower = query.lower().strip()
     query_norm = _normalize_arabic(query_lower)
 
+    # طلب البيت التالي أو السابق (عطني اللي بعده / اللي قبله)
+    adj_direction = is_next_or_previous_verse_request(query)
+    if adj_direction and adj_direction in ("next", "previous"):
+        last_result = request.last_poetry_result
+        if not last_result or not isinstance(last_result, dict):
+            return ChatResponse(
+                type="chat",
+                response="اسأل عن بيت أولاً ثم قل عطني اللي بعده أو اللي قبله."
+            )
+        poem_name = last_result.get("poem_name")
+        verse_number_raw = last_result.get("verse_number")
+        if not poem_name or verse_number_raw is None:
+            return ChatResponse(
+                type="chat",
+                response="اسأل عن بيت أولاً ثم قل عطني اللي بعده أو اللي قبله."
+            )
+        try:
+            verse_number = int(verse_number_raw)
+        except (TypeError, ValueError):
+            return ChatResponse(
+                type="chat",
+                response="اسأل عن بيت أولاً ثم قل عطني اللي بعده أو اللي قبله."
+            )
+        adjacent = get_adjacent_verse(AppState.chunks, poem_name, verse_number, adj_direction)
+        if not adjacent:
+            if adj_direction == "next":
+                return ChatResponse(type="chat", response="ما فيه بيت بعد هذا.")
+            return ChatResponse(type="chat", response="ما فيه بيت قبل هذا.")
+        vt = adjacent.get("verse_text") or ""
+        db_explanation = adjacent.get("text", "")
+        explanation = enhance_explanation(vt, db_explanation, adjacent.get("poet_name", ""))
+        src = adjacent.get("source") or {}
+        source_book = src.get("book", "شرح المعلقات السبع للزوزني") if isinstance(src, dict) else "شرح المعلقات السبع للزوزني"
+        item = SearchResultItem(
+            chunk_id=str(adjacent.get("chunk_id", "")),
+            poet_name=adjacent.get("poet_name") or "غير معروف",
+            poem_name=adjacent.get("poem_name") or poem_name,
+            verse_number=int(adjacent.get("verse_number", 0)),
+            verse_text=vt,
+            explanation=explanation,
+            source_title=source_book,
+            source_page=None,
+            score=1.0,
+        )
+        return ChatResponse(type="poetry", result=item)
+
     # طلبات شرح/معنى بدون ذكر بيت — نطلب إعطاء بيت
     if is_explain_request_without_verse(query):
         return ChatResponse(
@@ -764,8 +880,26 @@ async def chat(request: ChatRequest):
             friendly = get_friendly_response(query)
             if friendly:
                 return ChatResponse(type="chat", response=friendly)
-        # متابعات (وضّح أكثر، زدني، ماذا تقصد...) نستخدم LLM مع السجل
-        llm_reply = get_llm_response_with_history(query, history=history_list)
+        # استرجاع سياق من المستندات للأسئلة العامة (RAG) ثم LLM
+        retrieved_context = None
+        if AppState.is_loaded() and AppState.retriever:
+            try:
+                gen_results = AppState.retriever.search(query, k=3, score_threshold=0.0)
+                if gen_results:
+                    parts = []
+                    for r in gen_results[:3]:
+                        vt = (r.verse_text or "").strip()
+                        txt = (r.text or "").strip()
+                        if vt or txt:
+                            parts.append(f"بيت: {vt}\nشرح/نص: {txt[:500]}" if txt else f"بيت: {vt}")
+                    if parts:
+                        retrieved_context = "\n\n---\n\n".join(parts)
+            except Exception:
+                pass
+        # متابعات (وضّح أكثر، زدني، ماذا تقصد...) أو سؤال عام: LLM مع السجل والسياق المسترجع
+        llm_reply = get_llm_response_with_history(
+            query, history=history_list, context_hint=retrieved_context
+        )
         if llm_reply:
             return ChatResponse(type="chat", response=llm_reply)
         friendly_response = get_friendly_response(query)
@@ -816,14 +950,7 @@ async def chat(request: ChatRequest):
                 else:
                     overlap = 2  # تجاوز فحص التداخل عند المطابقة الصريحة
                 if not force_verse_match and len(query_words) >= 3 and overlap < 2:
-                    hint = "لم نجد البيت في قاعدة المعلقات؛ المستخدم قد يريد متابعة أو سؤالاً آخر."
-                    llm_reply = get_llm_response_with_history(query, history=history_list, context_hint=hint)
-                    if llm_reply:
-                        return ChatResponse(type="chat", response=llm_reply)
-                    return ChatResponse(
-                        type="chat",
-                        response=f"لم أعثر على هذا البيت في قاعدة بياناتي. أنا متخصص في المعلقات السبع:\n\n• امرؤ القيس • طرفة • زهير • لبيد • عمرو بن كلثوم • عنترة • الحارث بن حلزة\n\nجرّب بيتاً من أحد هؤلاء الشعراء."
-                    )
+                    return ChatResponse(type="chat", response=VERSE_NOT_IN_MUALLAQAT_MSG)
                 # استخراج الشرح من قاعدة البيانات
                 db_explanation = r.text
                 
@@ -849,14 +976,7 @@ async def chat(request: ChatRequest):
                 )
             else:
                 print(f"[DEBUG] Score {r.score} below threshold 0.1")
-                hint = "لم نجد البيت في قاعدة المعلقات."
-                llm_reply = get_llm_response_with_history(query, history=history_list, context_hint=hint)
-                if llm_reply:
-                    return ChatResponse(type="chat", response=llm_reply)
-                return ChatResponse(
-                    type="chat",
-                    response=f"لم أعثر على هذا البيت في قاعدة بياناتي. أنا متخصص في المعلقات السبع:\n\n• امرؤ القيس • طرفة • زهير • لبيد • عمرو بن كلثوم • عنترة • الحارث بن حلزة\n\nجرّب بيتاً من أحد هؤلاء الشعراء."
-                )
+                return ChatResponse(type="chat", response=VERSE_NOT_IN_MUALLAQAT_MSG)
     except Exception as e:
         # في حالة خطأ في البحث، نتابع للرد الودود
         print(f"[DEBUG] Search error: {e}")
@@ -909,15 +1029,8 @@ async def chat(request: ChatRequest):
             )
             return ChatResponse(type="poetry", result=item)
 
-    # إذا لم يُعثر على نتائج، محاولة رد حواري عبر LLM
-    hint = "لم نجد البيت في قاعدة المعلقات."
-    llm_reply = get_llm_response_with_history(query, history=history_list, context_hint=hint)
-    if llm_reply:
-        return ChatResponse(type="chat", response=llm_reply)
-    return ChatResponse(
-        type="chat",
-        response=f"لم أعثر على هذا البيت في قاعدة بياناتي. أنا متخصص في المعلقات السبع:\n\n• امرؤ القيس • طرفة • زهير • لبيد • عمرو بن كلثوم • عنترة • الحارث بن حلزة\n\nتفضل بإرسال بيت من أحد هؤلاء الشعراء."
-    )
+    # إذا لم يُعثر على نتائج — رد ثابت فقط (لا LLM ولا ويب)
+    return ChatResponse(type="chat", response=VERSE_NOT_IN_MUALLAQAT_MSG)
 
 
 @app.get("/poets", response_model=List[PoetInfo], tags=["Data"])

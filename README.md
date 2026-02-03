@@ -92,7 +92,7 @@
 └─────────────────────────────────────────────────────────────┘
 ```
 
-**للتفاصيل الكاملة:** راجع [ARCHITECTURE_DIAGRAM.md](ARCHITECTURE_DIAGRAM.md)
+**للتفاصيل الكاملة:** راجع [ARCHITECTURE.md](ARCHITECTURE.md)
 
 ---
 

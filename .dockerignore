@@ -1,0 +1,45 @@
+# Git and IDE
+.git
+.gitignore
+.cursor
+*.md
+!README.md
+
+# Python
+venv
+.venv
+__pycache__
+*.py[cod]
+*.egg-info
+.pytest_cache
+.coverage
+htmlcov
+
+# Node
+node_modules
+tarjuman-ui/node_modules
+.next
+tarjuman-ui/.next
+out
+
+# Env and secrets (use env_file or compose env instead)
+.env
+.env.local
+.env.*.local
+
+# Data: optional - comment out if you want to bake data into image
+# data/raw
+# data/processed
+# data/vectordb
+
+# Docs and misc
+docs
+*.plan.md
+*.drawio
+*.html
+inspect_*.py
+process_docx_v2.py
+rebuild_index.py
+start_api.bat
+start_ui.bat
+run_api.py
