@@ -15,11 +15,10 @@ __pycache__
 .coverage
 htmlcov
 
-# Node
+# Node (exclude whole UI when building API image for Railway)
+tarjuman-ui
 node_modules
-tarjuman-ui/node_modules
 .next
-tarjuman-ui/.next
 out
 
 # Env and secrets (use env_file or compose env instead)
@@ -27,10 +26,8 @@ out
 .env.local
 .env.*.local
 
-# Data: optional - comment out if you want to bake data into image
-# data/raw
-# data/processed
-# data/vectordb
+# Data: raw DOCX not needed in API image (keeps Railway build smaller)
+data/raw
 
 # Docs and misc
 docs

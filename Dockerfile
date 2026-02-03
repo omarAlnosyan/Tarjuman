@@ -19,6 +19,7 @@ COPY env_template.txt ./
 
 RUN pip install --no-cache-dir -r requirements.txt
 
-# GROQ_API_KEY must be set at runtime (env or env_file)
+# GROQ_API_KEY must be set at runtime (env or env_file). Railway sets PORT.
 EXPOSE 8000
-CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+ENV PORT=8000
+CMD ["sh", "-c", "exec uvicorn api.main:app --host 0.0.0.0 --port ${PORT}"]
