@@ -19,16 +19,16 @@
 <div dir="rtl">
 
 **ترجمان** يوفر شرحاً دقيقاً وموثوقاً لأبيات الشعر العربي من المعلقات السبع، باستخدام:
-- 🔍 **Hybrid Search** (BM25 + FAISS) للبحث الذكي
+- 🔍 **Hybrid Search** (BM25 + Chroma) للبحث الذكي
 - 🤖 **Llama 3.3 70B** عبر Groq API
-- 📚 **687 بيت شعري** من المعلقات السبع مع شروحات الزوزني
+- 📚 المعلقات السبع مع شروحات الزوزني
 
 </div>
 
 **Tarjuman** provides accurate and reliable explanations for Arabic poetry verses from the Seven Mu'allaqat, using:
-- 🔍 **Hybrid Search** (BM25 + FAISS) for intelligent search
+- 🔍 **Hybrid Search** (BM25 + Chroma) for intelligent search
 - 🤖 **Llama 3.3 70B** via Groq API
-- 📚 **687 poetry verses** from the Seven Mu'allaqat with Al-Zawzani's commentaries
+- 📚 Seven Mu'allaqat with Al-Zawzani's commentaries
 
 ---
 
@@ -37,9 +37,9 @@
 <div dir="rtl">
 
 ### 🔍 البحث والشرح
-- ✅ **بحث هجين ذكي**: يجمع بين البحث النصي (BM25) والدلالي (FAISS)
+- ✅ **بحث هجين ذكي**: يجمع بين البحث النصي (BM25) والدلالي (Chroma)
 - ✅ **شرح نقي**: عرض شرح الزوزني مباشرة بدون إضافات
-- ✅ **687 بيت**: قاعدة بيانات شاملة من المعلقات السبع
+- ✅ **قاعدة شاملة**: المعلقات السبع
 
 ### 💬 المحادثة الذكية
 - ✅ **معلومات الشعراء**: اسأل "من هو امرؤ القيس؟" أو "الفارس الشاعر"
@@ -54,9 +54,9 @@
 </div>
 
 ### 🔍 Search & Explanation
-- ✅ **Intelligent Hybrid Search**: Combines keyword (BM25) and semantic (FAISS) search
+- ✅ **Intelligent Hybrid Search**: Combines keyword (BM25) and semantic (Chroma) search
 - ✅ **Pure Explanation**: Direct display of Al-Zawzani's commentary without additions
-- ✅ **687 Verses**: Comprehensive database from the Seven Mu'allaqat
+- ✅ **Comprehensive**: Seven Mu'allaqat database
 
 ### 💬 Smart Conversation
 - ✅ **Poet Information**: Ask "Who is Imru' al-Qais?" or use poet nicknames
@@ -86,7 +86,7 @@
                             ↓
 ┌─────────────────────────────────────────────────────────────┐
 │                    Data Layer                               │
-│  • JSON Database (687 verses)                               │
+│  • JSON (processed chunks)                                  │
 │  • ChromaDB (Vector Store)                                  │
 │  • BM25 Index (In-memory)                                   │
 └─────────────────────────────────────────────────────────────┘
@@ -149,59 +149,54 @@ npm run dev
 
 <div dir="rtl">
 
-المشروع يحتوي على **687 بيت شعري** من المعلقات السبع:
-
-| الشاعر | عدد الأبيات |
-|--------|-------------|
-| امرؤ القيس | 103 |
-| طرفة بن العبد | 118 |
-| زهير بن أبي سلمى | 74 |
-| لبيد بن ربيعة | 106 |
-| عمرو بن كلثوم | 115 |
-| عنترة بن شداد | 85 |
-| الحارث بن حلزة | 86 |
-
-**المصدر:** شرح المعلقات السبع للزوزني
+المشروع يعتمد على المعلقات السبع (امرؤ القيس، طرفة، زهير، لبيد، عمرو بن كلثوم، عنترة، الحارث بن حلزة). **المصدر:** شرح المعلقات السبع للزوزني.
 
 </div>
 
-The project contains **687 poetry verses** from the Seven Mu'allaqat:
-
-| Poet | Verses |
-|------|--------|
-| Imru' al-Qais | 103 |
-| Tarafa | 118 |
-| Zuhayr | 74 |
-| Labid | 106 |
-| Amr ibn Kulthum | 115 |
-| Antarah | 85 |
-| Al-Harith | 86 |
-
-**Source:** Al-Zawzani's Commentary on the Seven Mu'allaqat
+The project uses the Seven Mu'allaqat (Imru' al-Qais, Tarafa, Zuhayr, Labid, Amr ibn Kulthum, Antarah, Al-Harith). **Source:** Al-Zawzani's Commentary on the Seven Mu'allaqat.
 
 ---
 
 ## 🔧 التقنيات المستخدمة | Tech Stack
 
-### Backend
-- **FastAPI** - Python web framework
-- **LangChain** - LLM integration
-- **ChromaDB** - Vector database
-- **BM25Okapi** - Keyword search
-- **FAISS** - Similarity search
+### Backend (Python)
+- **FastAPI** – واجهة API
+- **Uvicorn** – خادم ASGI
+- **LangChain** – تكامل RAG والـ LLM  
+  - `langchain-core` – رسائل النظام والمحادثة (SystemMessage, HumanMessage, AIMessage)  
+  - `langchain-community` – متجر المتجهات Chroma  
+  - `langchain-huggingface` – تضمينات HuggingFace  
+  - `langchain-groq` – ChatGroq (Llama عبر Groq)
+- **ChromaDB** – قاعدة المتجهات (عبر LangChain)
+- **rank-bm25** – البحث النصي (BM25)
+- **sentence-transformers** – نموذج التضمين (مثل multilingual-e5)
+- **PyArabic / camel-tools** – معالجة النص العربي
+- **python-docx, pandas, PyYAML, python-dotenv** – بيانات وتهيئة
 
 ### Frontend
-- **Next.js 14** - React framework
-- **TypeScript** - Type safety
-- **TailwindCSS** - Styling
-- **Amiri Font** - Arabic typography
+- **Next.js** – إطار React
+- **React** – واجهة المستخدم
+- **TypeScript** – الأمان النوعي
+- **Tailwind CSS** – التنسيق
+- **lucide-react** – الأيقونات
+- **react-markdown** – عرض الماركداون
+- **خط أميري** – خط عربي
 
-### LLM
-- **Llama 3.3 70B** - Language model
-- **Groq API** - LLM provider (fast and free)
+### LLM & Embeddings
+- **Llama 3.3 70B** – نموذج اللغة
+- **Groq API** – مزود الـ LLM
+- **multilingual-e5-base** (أو ما يُحمّل في sentence-transformers) – التضمينات
 
-### Embeddings
-- **multilingual-e5-base** - Embedding model
+### Tech Stack (English summary)
+| Layer | Technologies |
+|--------|---------------|
+| API | FastAPI, Uvicorn |
+| RAG / LLM | LangChain (core, community, huggingface, groq), ChatGroq |
+| Vector DB | ChromaDB (via LangChain) |
+| Sparse search | rank-bm25 (BM25) |
+| Embeddings | sentence-transformers (e.g. multilingual-e5), LangChain HuggingFace |
+| Arabic | PyArabic, camel-tools |
+| Frontend | Next.js, React, TypeScript, Tailwind CSS, lucide-react, react-markdown |
 
 ---
 
@@ -218,7 +213,6 @@ The project contains **687 poetry verses** from the Seven Mu'allaqat:
 
 **المخرج:**
 - **الشاعر:** لبيد بن ربيعة
-- **رقم البيت:** 3
 - **البيت الكامل:** عَفَتِ الدِّيَار مَحَلُّهَا فَمُقَامُهَا بِمِنىً تَأَبَّد غَوْلُهَا فَرِجَامُها
 - **الشرح:** [شرح الزوزني النقي]
 
@@ -247,7 +241,6 @@ The project contains **687 poetry verses** from the Seven Mu'allaqat:
 
 **Output:**
 - **Poet:** Labid ibn Rabi'ah
-- **Verse Number:** 3
 - **Full Verse:** عَفَتِ الدِّيَار مَحَلُّهَا فَمُقَامُهَا...
 - **Explanation:** [Pure Al-Zawzani commentary]
 
@@ -302,8 +295,8 @@ Tarjuman/
 │   └── embeddings.py      # Embedding model
 ├── data/
 │   ├── raw/               # Source DOCX
-│   ├── processed/         # JSON database (687 verses)
-│   └── vectordb/          # ChromaDB
+│   ├── processed/        # JSON chunks
+│   └── vectordb/         # ChromaDB
 ├── tarjuman-ui/           # Next.js Frontend
 │   └── src/app/page.tsx   # Main chat interface
 ├── run_api.py             # API runner
