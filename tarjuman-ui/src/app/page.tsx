@@ -59,13 +59,14 @@ interface Message {
   type: 'poetry' | 'chat';
   text: string;
   data?: SearchResult;
+  poetry_results?: SearchResult[];
 }
 
 const chatAPI = async (
   query: string,
   history: { role: 'user' | 'assistant'; content: string }[] = [],
   lastPoetryResult?: { poem_name: string; verse_number: number; poet_name?: string } | null
-): Promise<{ type: 'poetry' | 'chat'; data?: SearchResult; text?: string; error?: string }> => {
+): Promise<{ type: 'poetry' | 'chat'; data?: SearchResult; text?: string; poetry_results?: SearchResult[]; error?: string }> => {
   try {
     const body: { query: string; history: typeof history; last_poetry_result?: typeof lastPoetryResult } = { query, history };
     if (lastPoetryResult && lastPoetryResult.poem_name != null && lastPoetryResult.verse_number != null) {
@@ -89,7 +90,13 @@ const chatAPI = async (
     }
     const data = await response.json();
     if (data.type === 'poetry' && data.result) return { type: 'poetry', data: data.result };
-    if (data.type === 'chat' && data.response) return { type: 'chat', text: data.response };
+    if (data.type === 'chat' && data.response !== undefined) {
+      return {
+        type: 'chat',
+        text: data.response,
+        poetry_results: Array.isArray(data.poetry_results) ? data.poetry_results : undefined
+      };
+    }
     return { type: 'chat', text: 'لم أتمكن من فهم استفسارك. هل تريد البحث عن بيت شعري؟' };
   } catch (error: unknown) {
     const errMsg = error instanceof Error ? error.message : '';
@@ -123,22 +130,23 @@ const VerseCard = ({ data }: { data: SearchResult }) => (
         </div>
         <div className="flex items-center gap-2 px-3 py-1.5 bg-[#fdfbf7] rounded-full text-xs font-bold border border-[#d4af37]/10">
           <Hash size={14} className="text-[#d4af37]" />
-          <span>البيت {data.verse_number}</span>
+          <span>البيت {data.verse_number > 0 ? data.verse_number : 1}</span>
         </div>
       </div>
-      <div className="space-y-3">
-        <div className="flex items-center gap-2 text-[#d4af37] font-bold text-sm">
-          <Sparkles size={16} />
-          <span>الشرح والبيان</span>
+      {data.explanation?.trim() && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 text-[#d4af37] font-bold text-sm">
+            <Sparkles size={16} />
+            <span>الشرح والبيان</span>
+          </div>
+          <p className="text-lg leading-relaxed text-[#2c1810]/90 text-justify font-amiri bg-[#fdfbf7] p-5 rounded-xl border border-[#d4af37]/5">
+            {data.explanation}
+          </p>
         </div>
-        <p className="text-lg leading-relaxed text-[#2c1810]/90 text-justify font-amiri bg-[#fdfbf7] p-5 rounded-xl border border-[#d4af37]/5">
-          {data.explanation}
-        </p>
-      </div>
+      )}
     </div>
-    <div className="bg-[#f8f6f1] px-6 py-3 flex justify-between items-center text-[10px] text-[#8b7355] border-t border-[#d4af37]/10">
+    <div className="bg-[#f8f6f1] px-6 py-3 text-[10px] text-[#8b7355] border-t border-[#d4af37]/10">
       <span>المصدر: {data.source_title}</span>
-      <span>دقة التحليل: {Math.round(data.score * 100)}%</span>
     </div>
   </div>
 );
@@ -151,21 +159,23 @@ export default function Home() {
     text: 'أنا ترجمان، مساعدك المتخصص في شرح الشعر العربي القديم والمعلقات. أنا هنا لمساعدتك في فهم الأبيات الشعرية من خلال شروحات موثوقة من أمهات الكتب.\n\nجرّب الأمثلة أدناه'
   };
 
-  const [showLanding, setShowLanding] = useState(true);
+  const [showLanding, setShowLanding] = useState(false);
   const [messages, setMessages] = useState<Message[]>(() => [initialBotMessage]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [apiConnected, setApiConnected] = useState<boolean | null>(null);
-  const [warningDismissed, setWarningDismissed] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return false;
-    try {
-      return localStorage.getItem(WARNING_DISMISSED_KEY) === '1';
-    } catch {
-      return false;
-    }
-  });
+  const [warningDismissed, setWarningDismissed] = useState<boolean>(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
+
+  // قراءة "تجاهل التحذير" بعد الهيدريشن فقط (تفادي Hydration mismatch)
+  useEffect(() => {
+    try {
+      if (typeof window !== 'undefined' && localStorage.getItem(WARNING_DISMISSED_KEY) === '1') {
+        setWarningDismissed(true);
+      }
+    } catch { /* ignore */ }
+  }, []);
 
   const dismissWarning = () => {
     setWarningDismissed(true);
@@ -232,7 +242,8 @@ export default function Home() {
       role: 'bot',
       type: response.type,
       text: response.type === 'chat' ? (response.text || '') : 'وجدت لك هذا البيت في الدواوين:',
-      data: response.type === 'poetry' ? response.data : undefined
+      data: response.type === 'poetry' ? response.data : undefined,
+      poetry_results: response.type === 'chat' ? response.poetry_results : undefined
     };
     setMessages(prev => [...prev, botMsg]);
     setLoading(false);
@@ -394,8 +405,8 @@ export default function Home() {
         </aside>
 
         <main className="flex-1 flex flex-col relative overflow-hidden">
-          <div className="flex-1 overflow-y-auto p-4 lg:p-10 space-y-8 custom-scrollbar">
-            <div className="max-w-3xl mx-auto space-y-8">
+          <div className="flex-1 overflow-y-auto p-4 lg:p-10 flex justify-center custom-scrollbar">
+            <div className="w-full max-w-3xl space-y-8">
               {messages.map((msg) => (
                 <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-start' : 'justify-end'}`}>
                   <div className="max-w-[90%] md:max-w-[85%] space-y-3">
@@ -405,14 +416,27 @@ export default function Home() {
                         : 'bg-[#f8f6f1] border-[#d4af37]/10'
                     }`}>
                       {msg.role === 'bot' ? (
-                        <div className="prose prose-sm max-w-none prose-p:my-1 prose-headings:my-2">
-                          <ReactMarkdown>{msg.text}</ReactMarkdown>
-                        </div>
+                        <>
+                          <div className="prose prose-sm max-w-none prose-p:my-1 prose-headings:my-2">
+                            <ReactMarkdown>{msg.text}</ReactMarkdown>
+                          </div>
+                          {msg.poetry_results && msg.poetry_results.length > 0 && (
+                            <div className="space-y-6 mt-6 pt-4 border-t border-[#d4af37]/10">
+                              {msg.poetry_results.map((verse, idx) => (
+                                <VerseCard key={idx} data={verse} />
+                              ))}
+                            </div>
+                          )}
+                          {msg.type === 'poetry' && msg.data && !msg.poetry_results && (
+                            <div className="mt-6 pt-4 border-t border-[#d4af37]/10">
+                              <VerseCard data={msg.data} />
+                            </div>
+                          )}
+                        </>
                       ) : (
                         msg.text
                       )}
                     </div>
-                    {msg.type === 'poetry' && msg.data && <VerseCard data={msg.data} />}
                     <div className={`flex items-center gap-2 px-1 text-[10px] font-bold text-[#8b7355] uppercase ${msg.role === 'user' ? 'justify-start' : 'justify-end flex-row-reverse'}`}>
                       {msg.role === 'user' ? <User size={12} /> : <Compass size={12} />}
                       <span>{msg.role === 'user' ? 'أنت' : 'ترجمان'}</span>

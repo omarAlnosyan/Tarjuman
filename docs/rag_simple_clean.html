@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RAG System Architecture</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            background: #ffffff;
+            padding: 40px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .diagram { max-width: 900px; }
+        svg { width: 100%; height: auto; }
+    </style>
+</head>
+<body>
+    <div class="diagram">
+        <svg viewBox="0 0 880 620" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <polygon points="0 0, 10 3, 0 6" fill="#666" />
+                </marker>
+            </defs>
+            <!-- User -->
+            <circle cx="440" cy="50" r="22" fill="#E3F2FD" stroke="#1976D2" stroke-width="2"/>
+            <text x="440" y="55" text-anchor="middle" font-size="14" fill="#1976D2">User</text>
+            <!-- User Query -->
+            <rect x="340" y="90" width="200" height="36" rx="6" fill="#E3F2FD" stroke="#1976D2" stroke-width="1.5"/>
+            <text x="440" y="112" text-anchor="middle" font-size="14" fill="#333">User Query</text>
+            <!-- Data Sources label -->
+            <text x="440" y="155" text-anchor="middle" font-size="13" fill="#666" font-weight="600">Data Sources</text>
+            <!-- Cylinder 1: JSON DB -->
+            <ellipse cx="180" cy="188" rx="55" ry="14" fill="#E8F5E9" stroke="#388E3C" stroke-width="1.5"/>
+            <rect x="125" y="188" width="110" height="50" fill="#E8F5E9" stroke="#388E3C" stroke-width="1.5"/>
+            <ellipse cx="180" cy="238" rx="55" ry="14" fill="#C8E6C9" stroke="#388E3C" stroke-width="1.5"/>
+            <text x="180" y="218" text-anchor="middle" font-size="12" fill="#333">JSON DB</text>
+            <text x="180" y="232" text-anchor="middle" font-size="11" fill="#666">687 Verses</text>
+            <!-- Cylinder 2: ChromaDB -->
+            <ellipse cx="440" cy="188" rx="55" ry="14" fill="#FFF3E0" stroke="#F57C00" stroke-width="1.5"/>
+            <rect x="385" y="188" width="110" height="50" fill="#FFF3E0" stroke="#F57C00" stroke-width="1.5"/>
+            <ellipse cx="440" cy="238" rx="55" ry="14" fill="#FFE0B2" stroke="#F57C00" stroke-width="1.5"/>
+            <text x="440" y="218" text-anchor="middle" font-size="12" fill="#333">ChromaDB</text>
+            <text x="440" y="232" text-anchor="middle" font-size="11" fill="#666">Vector Store</text>
+            <!-- Cylinder 3: BM25 -->
+            <ellipse cx="700" cy="188" rx="55" ry="14" fill="#FFF3E0" stroke="#F57C00" stroke-width="1.5"/>
+            <rect x="645" y="188" width="110" height="50" fill="#FFF3E0" stroke="#F57C00" stroke-width="1.5"/>
+            <ellipse cx="700" cy="238" rx="55" ry="14" fill="#FFE0B2" stroke="#F57C00" stroke-width="1.5"/>
+            <text x="700" y="218" text-anchor="middle" font-size="12" fill="#333">BM25</text>
+            <text x="700" y="232" text-anchor="middle" font-size="11" fill="#666">Sparse Index</text>
+            <!-- Router (diamond) -->
+            <path d="M440 290 L500 350 L440 410 L380 350 Z" fill="#F3E5F5" stroke="#7B1FA2" stroke-width="1.5"/>
+            <text x="440" y="355" text-anchor="middle" font-size="13" fill="#7B1FA2" font-weight="600">Router</text>
+            <!-- Poetry Path container (dashed, left) -->
+            <rect x="80" y="450" width="320" height="120" rx="8" fill="none" stroke="#7B1FA2" stroke-width="2" stroke-dasharray="8 4"/>
+            <text x="240" y="478" text-anchor="middle" font-size="12" fill="#7B1FA2" font-weight="600">Poetry Path (Retrieval Only)</text>
+            <rect x="100" y="490" width="140" height="36" rx="6" fill="#F3E5F5" stroke="#7B1FA2" stroke-width="1"/>
+            <text x="170" y="512" text-anchor="middle" font-size="12" fill="#333">Hybrid Search</text>
+            <text x="170" y="524" text-anchor="middle" font-size="10" fill="#666">Exact + BM25 + Vector</text>
+            <rect x="260" y="490" width="120" height="36" rx="6" fill="#F3E5F5" stroke="#7B1FA2" stroke-width="1"/>
+            <text x="320" y="508" text-anchor="middle" font-size="12" fill="#333">Retrieve Result</text>
+            <text x="320" y="520" text-anchor="middle" font-size="10" fill="#666">Verse + Explanation</text>
+            <!-- General Path container (dashed, right) -->
+            <rect x="480" y="450" width="320" height="120" rx="8" fill="none" stroke="#0097A7" stroke-width="2" stroke-dasharray="8 4"/>
+            <text x="640" y="478" text-anchor="middle" font-size="12" fill="#0097A7" font-weight="600">General Path (Full RAG)</text>
+            <rect x="500" y="490" width="130" height="36" rx="6" fill="#E0F7FA" stroke="#0097A7" stroke-width="1"/>
+            <text x="565" y="512" text-anchor="middle" font-size="12" fill="#333">Retrieve Context</text>
+            <text x="565" y="524" text-anchor="middle" font-size="10" fill="#666">Top K Similar Docs</text>
+            <rect x="650" y="490" width="130" height="36" rx="6" fill="#FCE4EC" stroke="#C2185B" stroke-width="1"/>
+            <text x="715" y="508" text-anchor="middle" font-size="12" fill="#333">LLM Generation</text>
+            <text x="715" y="520" text-anchor="middle" font-size="10" fill="#666">Llama 3.3 70B</text>
+            <!-- Response -->
+            <rect x="340" y="590" width="200" height="24" rx="6" fill="#E8F5E9" stroke="#388E3C" stroke-width="1"/>
+            <text x="440" y="606" text-anchor="middle" font-size="13" fill="#333">Response</text>
+            <!-- Arrows -->
+            <line x1="440" y1="72" x2="440" y2="90" stroke="#666" stroke-width="2" marker-end="url(#arrowhead)"/>
+            <line x1="440" y1="126" x2="440" y2="155" stroke="#666" stroke-width="2" marker-end="url(#arrowhead)"/>
+            <path d="M180 238 L180 280 L440 320" stroke="#666" stroke-width="2" fill="none" marker-end="url(#arrowhead)"/>
+            <path d="M440 238 L440 290" stroke="#666" stroke-width="2" marker-end="url(#arrowhead)"/>
+            <path d="M700 238 L700 280 L440 320" stroke="#666" stroke-width="2" fill="none" marker-end="url(#arrowhead)"/>
+            <path d="M440 410 L440 450 L240 450" stroke="#666" stroke-width="2" fill="none" marker-end="url(#arrowhead)"/>
+            <path d="M440 410 L440 450 L640 450" stroke="#666" stroke-width="2" fill="none" marker-end="url(#arrowhead)"/>
+            <line x1="240" y1="570" x2="340" y2="590" stroke="#666" stroke-width="2" marker-end="url(#arrowhead)"/>
+            <line x1="640" y1="570" x2="540" y2="590" stroke="#666" stroke-width="2" marker-end="url(#arrowhead)"/>
+            <line x1="440" y1="614" x2="440" y2="72" stroke="#666" stroke-width="2" stroke-dasharray="4 4" marker-end="url(#arrowhead)"/>
+        </svg>
+    </div>
+</body>
+</html>

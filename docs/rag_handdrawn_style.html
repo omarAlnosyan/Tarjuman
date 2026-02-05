@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple RAG Flow</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Comic Sans MS', 'Segoe Print', sans-serif;
+            background: #fafafa;
+            padding: 40px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .diagram { max-width: 700px; }
+        svg { width: 100%; height: auto; }
+        .footer { margin-top: 20px; font-size: 12px; color: #666; text-align: center; }
+    </style>
+</head>
+<body>
+    <div class="diagram">
+        <svg viewBox="0 0 680 720" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                <marker id="arrow2" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <polygon points="0 0, 10 3, 0 6" fill="#555" />
+                </marker>
+            </defs>
+            <!-- Section: Data Preparation -->
+            <text x="340" y="28" text-anchor="middle" font-size="14" fill="#7b1fa2" font-weight="bold">Data Preparation</text>
+            <!-- Knowledge Base cylinder -->
+            <ellipse cx="100" cy="58" rx="45" ry="12" fill="#e8f5e9" stroke="#388e3c" stroke-width="1.5"/>
+            <rect x="55" y="58" width="90" height="38" fill="#e8f5e9" stroke="#388e3c" stroke-width="1.5"/>
+            <ellipse cx="100" cy="96" rx="45" ry="12" fill="#c8e6c9" stroke="#388e3c" stroke-width="1.5"/>
+            <text x="100" y="78" text-anchor="middle" font-size="11" fill="#333">Knowledge</text>
+            <text x="100" y="91" text-anchor="middle" font-size="10" fill="#666">Base</text>
+            <!-- Chunking -->
+            <rect x="200" y="48" width="90" height="48" rx="8" fill="#f3e5f5" stroke="#7b1fa2" stroke-width="1"/>
+            <text x="245" y="72" text-anchor="middle" font-size="12" fill="#333">Chunking</text>
+            <!-- Documents (stacked) -->
+            <rect x="340" y="52" width="70" height="8" rx="2" fill="#fff3e0" stroke="#f57c00"/>
+            <rect x="335" y="58" width="80" height="8" rx="2" fill="#fff3e0" stroke="#f57c00"/>
+            <rect x="342" y="64" width="66" height="8" rx="2" fill="#fff3e0" stroke="#f57c00"/>
+            <text x="375" y="88" text-anchor="middle" font-size="10" fill="#666">Documents</text>
+            <!-- Embed label on arrow -->
+            <!-- Embedding Model -->
+            <rect x="460" y="48" width="110" height="44" rx="8" fill="#fffde7" stroke="#f9a825" stroke-width="1"/>
+            <text x="515" y="68" text-anchor="middle" font-size="11" fill="#333">Embedding</text>
+            <text x="515" y="82" text-anchor="middle" font-size="11" fill="#333">Model</text>
+            <!-- Indexing label -->
+            <!-- Vector DB cylinder -->
+            <ellipse cx="620" cy="58" rx="45" ry="12" fill="#e0f7fa" stroke="#0097a7" stroke-width="1.5"/>
+            <rect x="575" y="58" width="90" height="38" fill="#e0f7fa" stroke="#0097a7" stroke-width="1.5"/>
+            <ellipse cx="620" cy="96" rx="45" ry="12" fill="#b2ebf2" stroke="#0097a7" stroke-width="1.5"/>
+            <text x="620" y="78" text-anchor="middle" font-size="11" fill="#333">Vector DB</text>
+            <!-- Data prep arrows -->
+            <path d="M145 70 L200 72" stroke="#555" stroke-width="2" marker-end="url(#arrow2)"/>
+            <text x="172" y="65" font-size="9" fill="#666">Chunking</text>
+            <path d="M290 72 L340 72" stroke="#555" stroke-width="2" marker-end="url(#arrow2)"/>
+            <text x="310" y="65" font-size="9" fill="#666">Embed</text>
+            <path d="M410 72 L460 70" stroke="#555" stroke-width="2" marker-end="url(#arrow2)"/>
+            <path d="M570 70 L620 70" stroke="#555" stroke-width="2" marker-end="url(#arrow2)"/>
+            <text x="590" y="65" font-size="9" fill="#666">Indexing</text>
+
+            <!-- Section: Query Processing -->
+            <text x="340" y="148" text-anchor="middle" font-size="14" fill="#1976d2" font-weight="bold">Query Processing</text>
+            <!-- User -->
+            <circle cx="80" cy="190" r="20" fill="#e3f2fd" stroke="#1976d2" stroke-width="1.5"/>
+            <text x="80" y="195" text-anchor="middle" font-size="10" fill="#1976d2">User</text>
+            <!-- User Query -->
+            <rect x="130" y="172" width="100" height="36" rx="8" fill="#e3f2fd" stroke="#1976d2" stroke-width="1"/>
+            <text x="180" y="194" text-anchor="middle" font-size="12" fill="#333">User Query</text>
+            <!-- Embedding Model (query) -->
+            <rect x="270" y="172" width="100" height="36" rx="8" fill="#fffde7" stroke="#f9a825" stroke-width="1"/>
+            <text x="320" y="194" text-anchor="middle" font-size="11" fill="#333">Embedding</text>
+            <!-- Curved to Vector DB -->
+            <path d="M320 208 Q420 208 520 96" stroke="#555" stroke-width="2" fill="none" marker-end="url(#arrow2)"/>
+            <text x="410" y="140" font-size="9" fill="#666">Semantic Search</text>
+            <!-- Retrieval arrow from Vector DB to Retrieved Documents -->
+            <path d="M620 96 Q620 240 440 272" stroke="#555" stroke-width="2" fill="none" marker-end="url(#arrow2)"/>
+            <text x="560" y="180" font-size="9" fill="#666">Retrieval</text>
+            <!-- Retrieved Documents -->
+            <rect x="400" y="262" width="80" height="10" rx="2" fill="#e8f5e9" stroke="#388e3c"/>
+            <rect x="395" y="268" width="90" height="10" rx="2" fill="#e8f5e9" stroke="#388e3c"/>
+            <rect x="402" y="274" width="76" height="10" rx="2" fill="#e8f5e9" stroke="#388e3c"/>
+            <text x="440" y="298" text-anchor="middle" font-size="10" fill="#666">Retrieved Docs</text>
+            <!-- Query flow arrows -->
+            <line x1="100" y1="190" x2="130" y2="190" stroke="#555" stroke-width="2" marker-end="url(#arrow2)"/>
+            <line x1="230" y1="190" x2="270" y2="190" stroke="#555" stroke-width="2" marker-end="url(#arrow2)"/>
+
+            <!-- Section: Generation -->
+            <text x="340" y="338" text-anchor="middle" font-size="14" fill="#c2185b" font-weight="bold">Generation</text>
+            <!-- LLM Prompt (receives User Query + Retrieved Docs) -->
+            <rect x="240" y="355" width="200" height="44" rx="8" fill="#fce4ec" stroke="#c2185b" stroke-width="1"/>
+            <text x="340" y="375" text-anchor="middle" font-size="12" fill="#333">LLM Prompt</text>
+            <text x="340" y="390" text-anchor="middle" font-size="10" fill="#666">Query + Retrieved Docs</text>
+            <!-- LLM -->
+            <rect x="260" y="420" width="160" height="44" rx="8" fill="#e0f7fa" stroke="#0097a7" stroke-width="1"/>
+            <text x="340" y="445" text-anchor="middle" font-size="13" fill="#333">LLM</text>
+            <!-- Output -->
+            <rect x="280" y="485" width="120" height="36" rx="8" fill="#e8f5e9" stroke="#388e3c" stroke-width="1"/>
+            <text x="340" y="507" text-anchor="middle" font-size="12" fill="#333">Output</text>
+            <!-- Arrows: Retrieved -> LLM Prompt, User Query -> LLM Prompt -->
+            <path d="M440 310 L440 355" stroke="#555" stroke-width="2" marker-end="url(#arrow2)"/>
+            <path d="M180 190 Q180 360 240 377" stroke="#555" stroke-width="2" fill="none" marker-end="url(#arrow2)"/>
+            <line x1="340" y1="399" x2="340" y2="420" stroke="#555" stroke-width="2" marker-end="url(#arrow2)"/>
+            <line x1="340" y1="464" x2="340" y2="485" stroke="#555" stroke-width="2" marker-end="url(#arrow2)"/>
+            <!-- Output back to User -->
+            <path d="M340 521 Q200 521 80 210" stroke="#555" stroke-width="2" fill="none" stroke-dasharray="4 4" marker-end="url(#arrow2)"/>
+            <text x="180" y="360" font-size="9" fill="#666">to User</text>
+        </svg>
+        <p class="footer">Poetry Path: Retrieval Only (No LLM) · General Path: Full RAG (Retrieval + Generation)</p>
+    </div>
+</body>
+</html>

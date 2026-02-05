@@ -8,16 +8,21 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import List, Optional, Literal
 import os
+import re
 import sys
 from pathlib import Path
 from dotenv import load_dotenv
 
-# تحميل المتغيرات البيئية
-load_dotenv('env_template.txt')
-
-# إضافة المسار الأساسي
-ROOT_DIR = Path(__file__).parent.parent
+# المسار الأساسي للمشروع (يعمل أينما كان مجلد التشغيل)
+ROOT_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT_DIR))
+
+# تحميل المتغيرات البيئية من مجلد المشروع
+_env_file = ROOT_DIR / "env_template.txt"
+if _env_file.exists():
+    load_dotenv(str(_env_file))
+else:
+    load_dotenv()  # .env إن وُجد في المجلد الحالي
 
 # ===== Pydantic Models =====
 
@@ -67,6 +72,7 @@ class ChatResponse(BaseModel):
     type: str = Field(..., description="نوع الرد: 'poetry' أو 'chat'")
     result: Optional[SearchResultItem] = None
     response: Optional[str] = None
+    poetry_results: Optional[List[SearchResultItem]] = Field(default=None, description="قائمة أبيات للطلبات الموضوعية")
 
 
 class PoetInfo(BaseModel):
@@ -139,29 +145,33 @@ class AppState:
 @app.on_event("startup")
 async def startup_event():
     """تحميل الموارد عند بدء السيرفر"""
-    print("[*] Loading Tarjuman API...")
-    
-    # تحميل قاعدة البيانات (المعلقات السبع)
+    def _log(msg: str):
+        print(msg, flush=True)
+
+    _log("[*] Loading Tarjuman API...")
     chunks_path = ROOT_DIR / "data" / "processed" / "all_chunks_final.json"
     vectordb_path = ROOT_DIR / "data" / "vectordb"
-    
+
+    if not chunks_path.exists():
+        _log(f"   [ERROR] Chunks file not found: {chunks_path}")
+    if not vectordb_path.exists():
+        _log(f"   [WARN] Vector DB path not found: {vectordb_path}")
+
     try:
         from src.retrieval.hybrid_search import create_hybrid_retriever
         import json
-        
+
         AppState.retriever = create_hybrid_retriever(
             chunks_path=str(chunks_path),
             vectordb_path=str(vectordb_path),
             build_new=False
         )
-        print("   [OK] Hybrid Retriever loaded")
-        
-        # تحميل الـ chunks للمعلومات الإضافية
+        _log("   [OK] Hybrid Retriever loaded")
+
         with open(chunks_path, 'r', encoding='utf-8') as f:
             AppState.chunks = json.load(f)
-        print(f"   [OK] Loaded {len(AppState.chunks)} verses")
-        
-        # استخراج قائمة الشعراء
+        _log(f"   [OK] Loaded {len(AppState.chunks)} verses")
+
         poets_dict = {}
         for chunk in AppState.chunks:
             poet = chunk.get('poet_name', 'Unknown')
@@ -170,36 +180,37 @@ async def startup_event():
                 poets_dict[poet] = {'poems': set(), 'verses': 0}
             poets_dict[poet]['poems'].add(poem)
             poets_dict[poet]['verses'] += 1
-        
+
         AppState.poets = [
             PoetInfo(name=name, poem_count=len(data['poems']), verse_count=data['verses'])
             for name, data in poets_dict.items()
         ]
-        print(f"   [OK] Extracted {len(AppState.poets)} poets")
-        
+        _log(f"   [OK] Extracted {len(AppState.poets)} poets")
+
     except Exception as e:
-        print(f"   [ERROR] Failed to load database: {e}")
-    
-    # تحميل LLM (Groq - سريع جداً)
+        _log(f"   [ERROR] Failed to load database: {e}")
+        import traceback
+        traceback.print_exc()
+
     try:
         groq_key = os.environ.get("GROQ_API_KEY")
-        if groq_key and groq_key.strip():
+        if groq_key and groq_key.strip() and "your_groq" not in groq_key.lower():
             from langchain_groq import ChatGroq
-            
             AppState.llm = ChatGroq(
-                model="llama-3.3-70b-versatile",  # نموذج Groq - سريع جداً
+                model="llama-3.3-70b-versatile",
                 temperature=0.1,
                 max_tokens=512,
                 groq_api_key=groq_key
             )
-            print("   [OK] LLM loaded (Groq - Llama 3.3 70B)")
+            _log("   [OK] LLM loaded (Groq - Llama 3.3 70B)")
         else:
-            print("   [WARN] LLM not available (GROQ_API_KEY missing)")
+            _log("   [WARN] LLM not available (set GROQ_API_KEY in env_template.txt for verse explanation)")
             AppState.llm = None
     except Exception as e:
-        print(f"   [WARN] LLM failed: {e}")
-        print("   [INFO] Make sure GROQ_API_KEY is set in environment")
+        _log(f"   [WARN] LLM failed: {e}")
         AppState.llm = None
+
+    _log("[*] Tarjuman API ready.")
 
 # ===== Helper Functions =====
 
@@ -208,42 +219,126 @@ def enhance_explanation(verse_text: str, db_explanation: str, poet_name: str) ->
     تنظيف الشرح من الزوزني - إزالة البيت والمعلومات الإضافية
     - المصدر: قاعدة البيانات (شرح الزوزني)
     """
-    # تنظيف الشرح من البيت والمعلومات الزائدة
-    explanation = db_explanation
-    
-    # إزالة "البيت: ..." إذا كان موجوداً
-    if "البيت:" in explanation:
+    explanation = db_explanation or ""
+    # إن كان النص يبدأ بـ "البيت:" فنجعل الشرح = ما بعد "الشرح:" فقط (لا نكرر البيت)
+    if "الشرح:" in explanation and explanation.strip().startswith("البيت:"):
+        after_sharh = explanation.split("الشرح:", 1)[1].strip()
+        if after_sharh:
+            explanation = after_sharh
+        else:
+            # الشرح فارغ والبيت معروض في البوكس → لا نكرر نفس النص
+            explanation = ""
+    elif "البيت:" in explanation:
         parts = explanation.split("الشرح:", 1)
-        if len(parts) > 1:
+        if len(parts) > 1 and parts[1].strip():
             explanation = parts[1].strip()
         else:
-            # محاولة إزالة كل شيء قبل السطر الثاني
             lines = explanation.split('\n')
-            if len(lines) > 1:
-                explanation = '\n'.join(lines[1:]).strip()
+            cleaned = []
+            for line in lines:
+                line = line.strip()
+                if line.startswith("البيت:"):
+                    continue
+                if line.startswith("الشرح:"):
+                    line = line.replace("الشرح:", "").strip()
+                if line:
+                    cleaned.append(line)
+            explanation = ' '.join(cleaned).strip()
     
-    # إزالة أي سطر يبدأ بـ "البيت:"
     lines = explanation.split('\n')
     cleaned_lines = []
-    skip_next = False
-    
     for line in lines:
         line_stripped = line.strip()
         if line_stripped.startswith("البيت:"):
-            skip_next = True
             continue
-        if skip_next and (line_stripped.startswith("الشرح:") or len(line_stripped) > 50):
-            skip_next = False
-        if not skip_next and line_stripped:
-            # إزالة "الشرح:" إذا كانت في بداية السطر
-            if line_stripped.startswith("الشرح:"):
-                line_stripped = line_stripped.replace("الشرح:", "").strip()
-            if line_stripped:
-                cleaned_lines.append(line_stripped)
+        if line_stripped.startswith("الشرح:"):
+            line_stripped = line_stripped.replace("الشرح:", "").strip()
+        if line_stripped:
+            cleaned_lines.append(line_stripped)
     
     explanation = ' '.join(cleaned_lines).strip()
-    
     return explanation if explanation else db_explanation
+
+
+def _is_junk_display_text(s: str) -> bool:
+    """هل النص المعروض ترجمة/سيرة وليس بيتاً؟ (للاستخدام في عرض البيت أو فلترة النتائج)."""
+    if not (s or "").strip():
+        return True
+    t = (s or "").strip()[:80]
+    if t.startswith("ترجمة ") or "ترجمة " in t[:25] or t.startswith("ترجمة"):
+        return True
+    if "اسمه ونسبه" in t or t.startswith("اسمه") or (len(t) <= 30 and "نسبه" in t):
+        return True
+    if "أقوال القدماء" in t or "فنه موته" in t:
+        return True
+    # انتهاء برقم (مثل "زهير بن أبي سلمى 343")
+    if len(s) > 10 and s.strip()[-1].isdigit() and any(c.isdigit() for c in (s or "")[-8:]):
+        return True
+    return False
+
+
+def _display_verse_from_chunk(text: str, verse_text: str, poem_name: str) -> str:
+    """
+    يُرجع النص الذي يُعرض في بوكس البيت: إما البيت الحقيقي من النص، أو verse_text إن كان شطراً،
+    أو placeholder إن كان verse_text شرحاً مكرراً (بيانات خاطئة).
+    """
+    vt = (verse_text or "").strip()
+    txt = (text or "").strip()
+    # استخراج ما بعد "البيت:" وقبل "الشرح:"
+    if "البيت:" in txt and ("الشرح:" in txt or "\n\n" in txt):
+        after_beit = txt.split("البيت:")[1].strip()
+        beit_part = after_beit.split("الشرح:")[0].split("\n\n")[0].strip()
+        # لا نعرض ترجمة/اسمه ونسبه/أقوال القدماء كأنها بيت
+        if beit_part and not _is_junk_display_text(beit_part) and len(beit_part) <= 130 and beit_part.count("،") <= 2:
+            return beit_part
+    # إذا verse_text يبدو شرحاً/نثراً (طويل، أو فيه "شبهها/يقول/أي/يعني" أو فواصل كثيرة) → placeholder
+    if not vt:
+        return f"بيت من {poem_name}"
+    if len(vt) > 150 and vt.count("،") >= 2:
+        return f"بيت من {poem_name}"
+    if any(x in vt for x in ("شبهها", "يقول:", "أي ", "يعني ", "يُراد ", "قيل:")):
+        return f"بيت من {poem_name}"
+    return vt
+
+
+def _is_junk_thematic_verse(verse_text: str, display_verse: str) -> bool:
+    """استبعاد نتائج ليست أبياتاً (عناوين ترجمة، اسمه ونسبه، أقوال القدماء، أرقام، إلخ)."""
+    vt = (verse_text or "").strip()
+    dv = (display_verse or "").strip()
+    if not vt and not dv:
+        return True
+    # استخدام الفحص الموحد للنص المعروض
+    if _is_junk_display_text(dv):
+        return True
+    if _is_junk_display_text(vt):
+        return True
+    # عناوين ترجمة أو سيرة (أي شكل)
+    if "ترجمة" in vt[:30] and ("بن " in vt or "اسمه" in vt or "نسبه" in vt):
+        return True
+    if vt in ("اسمه", "اسمه ونسبه", "نسبه") or dv in ("اسمه", "اسمه ونسبه"):
+        return True
+    if "أقوال القدماء" in vt or "فنه موته" in vt:
+        return True
+    # انتهاء برقم (مثل 425، 343)
+    if vt and len(vt) > 5 and any(c.isdigit() for c in vt[-6:]):
+        if vt[-1].isdigit() or (len(vt) > 1 and vt[-2] in " \t" and vt[-1].isdigit()):
+            return True
+    if len(vt) < 20 and any(c.isdigit() for c in vt):
+        return True
+    return False
+
+
+def _shorten_explanation(explanation: str, max_lines: int = 3, max_chars: int = 280) -> str:
+    """تقصير الشرح المعروض إلى 3 أسطر أو نحو 280 حرفاً (شرح مختصر ومستحسن)."""
+    if not (explanation or "").strip():
+        return explanation or ""
+    text = explanation.strip()
+    lines = [ln.strip() for ln in text.split("\n") if ln.strip()][:max_lines]
+    out = " ".join(lines)
+    if len(out) > max_chars:
+        out = out[:max_chars].rsplit(" ", 1)[0] if " " in out[:max_chars] else out[:max_chars]
+        out = out.rstrip(".,،؛") + "…"
+    return out
 
 
 def is_general_question(query: str) -> bool:
@@ -294,6 +389,43 @@ def is_general_question(query: str) -> bool:
                 return True
     
     return any(pattern in query_lower for pattern in general_patterns)
+
+
+def is_thematic_verse_request(query: str) -> bool:
+    """
+    طلب موضوعي: أبيات من المعلقات عن موضوع (حب، غزل، فخر، حكمة، ضحك، إلخ).
+    مثل: أبي بيت شعر عن الحب، أعطني أبيات عن الغزل، شعر عن الفخر.
+    """
+    q = query.strip()
+    if len(q) < 6:
+        return False
+    q_lower = q.lower()
+    q_norm = _normalize_arabic(q_lower)
+    thematic_patterns = [
+        "أبيات عن", "ابيات عن", "بيت عن", "بيت شعر عن", "شعر عن",
+        "أبي بيت عن", "ابي بيت عن", "اعطني أبيات عن", "اعطيني أبيات عن",
+        "أريد أبيات عن", "اريد ابيات عن", "ابغى بيت عن", "أبغى بيت عن",
+        "ابي ابيات عن", "أبي ابيات عن", "في المعلقات عن", "من المعلقات عن",
+    ]
+    if any(p in q_norm or p in q_lower for p in thematic_patterns):
+        return True
+    # "أبيات الحب" أو "شعر الغزل" (بدون "عن")
+    if ("أبيات" in q_norm or "ابيات" in q_lower) and any(
+        t in q_norm for t in [
+            "الحب", "الغزل", "الفخر", "الحكمة", "الضحك", "الوصف", "الحماسة", "العشق", "الشجاعة",
+            "الأطلال", "الديار", "الحنين", "الزهد", "الموت", "الدنيا", "الرحلة", "السفر", "الترحال",
+            "الفرس", "الناقة", "الفروسية", "البلاغة", "النسب", "القبيلة", "العدل", "الصلح", "السلام"
+        ]
+    ):
+        return True
+    if ("شعر" in q_norm or "بيت" in q_norm) and ("عن" in q_norm) and len(q.split()) >= 4:
+        return True
+    # "وصف الناقة أو الفرس"، "ناقة الشاعر"، "خيل الحرب" → طلب موضوعي
+    if "وصف" in q_norm and any(w in q_norm for w in ["ناقة", "فرس", "راحلة", "خيل"]):
+        return True
+    if any(w in q_norm for w in ["ناقة الشاعر", "وصف الفرس", "خيل الحرب"]) and len(q.split()) >= 2:
+        return True
+    return False
 
 
 def get_poet_info(poet_name: str) -> str:
@@ -554,7 +686,7 @@ def get_llm_response_with_history(
         system = """أنت ترجمان، مساعد متخصص في شرح الشعر العربي القديم والمعلقات السبع.
 تجاوب باختصار ووضوح، وبصيغة Markdown عند الحاجة (عناوين، توكيد، قوائم).
 
-أجب بالعربية الفصحى فقط. لا تستخدم أبداً حروفاً أو كلمات من لغات أخرى (مثل الصينية أو الإنجليزية) في جسم الرد.
+أجب بالعربية الفصحى فقط. لا تستخدم أي كلمات إنجليزية أو أجنبية في جسم الرد أبداً؛ اكتب كل شيء بالعربية.
 
 المعلقات السبع المعتمدة هنا (ولا غيرها) هي لسبعة شعراء فقط ولا غيرهم أبداً:
 امرؤ القيس، طرفة بن العبد، زهير بن أبي سلمى، لبيد بن ربيعة، عمرو بن كلثوم، عنترة بن شداد، الحارث بن حلزة.
@@ -579,12 +711,55 @@ def get_llm_response_with_history(
         out = AppState.llm.invoke(messages)
         if hasattr(out, "content") and out.content:
             text = out.content.strip()
-            # إزالة حروف من لغات أخرى (مثل الصينية) إن تسربت إلى الرد
             text = _keep_arabic_and_latin(text)
+            text = _remove_english_words(text)
             return text if text else None
         return None
     except Exception as e:
         print(f"[DEBUG] LLM with history error: {e}")
+        return None
+
+
+def get_llm_verse_explanation(verse_text: str, db_explanation: str, poet_name: str) -> Optional[str]:
+    """
+    تمرير البيت وشرح الكتاب للـ LLM ليعيد صياغة الشرح بوضوح مع الالتزام بالمصدر فقط (تقليل الهلوسة).
+    إذا فشل الـ LLM أو لم يكن متاحاً ترجع None فيستخدم enhance_explanation كاحتياط.
+    """
+    verse_clean = (verse_text or "").strip()
+    explanation_str = str(db_explanation or "").strip()
+    if not AppState.llm or not explanation_str or not verse_clean:
+        return None
+    try:
+        from langchain_core.messages import SystemMessage, HumanMessage
+
+        system = """أنت ترجمان، مساعد متخصص في شرح الشعر العربي من المعلقات السبع.
+المعطى لك بيت شعري وشرحه من كتاب شرح المعلقات للزوزني. مهمتك أن تقدم هذا الشرح للمستخدم بوضوح.
+
+قواعد إلزامية:
+- قدّم شرح الكتاب فقط. لا تضف معلوماتاً أو تفسيرات من عندك أبداً.
+- لا تخترع أبياتاً أو معاني غير موجودة في الشرح المعطى.
+- اكتب الناتج كنص عادي فقط: لا تستخدم Markdown مطلقاً (لا # ولا ## ولا ### ولا #### ولا * ولا **). لا عناوين، لا نجوم، لا تنسيق. فقرات متتابعة من الشرح فقط.
+- أجب بالعربية الفصحى فقط."""
+
+        user_content = f"""البيت: {verse_clean}
+
+الشرح من الكتاب (شرح الزوزني):
+{explanation_str[:3000]}
+
+أعد صياغة هذا الشرح للمستخدم كنص عادي متصل، بدون عناوين وبدون Markdown، مع الالتزام بالمحتوى فقط."""
+
+        messages = [
+            SystemMessage(content=system),
+            HumanMessage(content=user_content),
+        ]
+        out = AppState.llm.invoke(messages)
+        if hasattr(out, "content") and out.content:
+            text = out.content.strip()
+            text = _keep_arabic_and_latin(text)
+            return text if text else None
+        return None
+    except Exception as e:
+        print(f"[DEBUG] LLM verse explanation error: {e}")
         return None
 
 
@@ -598,9 +773,19 @@ def _keep_arabic_and_latin(text: str) -> str:
             result.append(c)
         elif 'A' <= c <= 'Z' or 'a' <= c <= 'z':  # لاتيني
             result.append(c)
-        elif c.isdigit() or c in ' \n\t.,;:!?\-–—\'\"()[]{}•·*#\u200c\u200d':
+        elif c.isdigit() or c in ' \n\t.,;:!?-' + '–—\'\"()[]{}•·*#\u200c\u200d':
             result.append(c)
     return ''.join(result)
+
+
+def _remove_english_words(text: str) -> str:
+    """إزالة الكلمات الإنجليزية من النص (تبقى العربية فقط)."""
+    if not text:
+        return text
+    # إزالة تسلسلات من حروف لاتينية (كلمة إنجليزية)
+    cleaned = re.sub(r'[a-zA-Z]{2,}', '', text)
+    cleaned = re.sub(r'\s+', ' ', cleaned).strip()
+    return cleaned
 
 
 # ===== API Endpoints =====
@@ -705,20 +890,21 @@ async def search_verses(request: SearchRequest):
         elif '\n\n' in db_explanation:
             db_explanation = db_explanation.split('\n\n', 1)[1].strip()
         
-        # تحسين الشرح باستخدام LLM (RAG + LLM)
+        # شرح البيت: نمرره على LLM (مقيد بشرح الكتاب) أو نستخدم التنظيف فقط
         poet_name = r.poet_name or "غير معروف"
-        enhanced_explanation = enhance_explanation(r.verse_text, db_explanation, poet_name)
+        explanation = get_llm_verse_explanation(r.verse_text or "", db_explanation, poet_name) or enhance_explanation(r.verse_text, db_explanation, poet_name)
         
         # استخراج رقم البيت (من الـ SearchResult مباشرة)
         verse_num = r.verse_number if r.verse_number else 0
         
+        display_verse = _display_verse_from_chunk(r.text or "", r.verse_text or query, r.poem_name or "غير معروف")
         item = SearchResultItem(
             chunk_id=str(r.chunk_id),
             poet_name=poet_name,
             poem_name=r.poem_name or "غير معروف",
             verse_number=verse_num,
-            verse_text=r.verse_text or query,
-            explanation=enhanced_explanation,
+            verse_text=display_verse,
+            explanation=_shorten_explanation(explanation),
             source_title=r.source_book or "شرح المعلقات السبع للزوزني",
             source_page=None,
             score=r.score
@@ -791,7 +977,8 @@ async def chat(request: ChatRequest):
             return ChatResponse(type="chat", response="ما فيه بيت قبل هذا.")
         vt = adjacent.get("verse_text") or ""
         db_explanation = adjacent.get("text", "")
-        explanation = enhance_explanation(vt, db_explanation, adjacent.get("poet_name", ""))
+        poet_adj = adjacent.get("poet_name", "") or "غير معروف"
+        explanation = get_llm_verse_explanation(vt, db_explanation, poet_adj) or enhance_explanation(vt, db_explanation, poet_adj)
         src = adjacent.get("source") or {}
         source_book = src.get("book", "شرح المعلقات السبع للزوزني") if isinstance(src, dict) else "شرح المعلقات السبع للزوزني"
         item = SearchResultItem(
@@ -800,7 +987,7 @@ async def chat(request: ChatRequest):
             poem_name=adjacent.get("poem_name") or poem_name,
             verse_number=int(adjacent.get("verse_number", 0)),
             verse_text=vt,
-            explanation=explanation,
+            explanation=_shorten_explanation(explanation),
             source_title=source_book,
             source_page=None,
             score=1.0,
@@ -839,7 +1026,8 @@ async def chat(request: ChatRequest):
             v_clean = _strip_harakat(_normalize_arabic(vt))
             if "غادر" in v_clean and "متردم" in v_clean:
                 db_explanation = chunk.get("text", "")
-                explanation = enhance_explanation(vt, db_explanation, chunk.get("poet_name", ""))
+                poet_gh = chunk.get("poet_name", "") or "عنترة بن شداد"
+                explanation = get_llm_verse_explanation(vt, db_explanation, poet_gh) or enhance_explanation(vt, db_explanation, poet_gh)
                 src = chunk.get("source") or {}
                 source_book = src.get("book", "شرح المعلقات السبع للزوزني") if isinstance(src, dict) else "شرح المعلقات السبع للزوزني"
                 item = SearchResultItem(
@@ -848,7 +1036,7 @@ async def chat(request: ChatRequest):
                     poem_name=chunk.get("poem_name") or "معلقة عنترة",
                     verse_number=int(chunk.get("verse_number", 0)),
                     verse_text=vt,
-                    explanation=explanation,
+                    explanation=_shorten_explanation(explanation),
                     source_title=source_book,
                     source_page=None,
                     score=1.0,
@@ -904,6 +1092,130 @@ async def chat(request: ChatRequest):
             return ChatResponse(type="chat", response=llm_reply)
         friendly_response = get_friendly_response(query)
         return ChatResponse(type="chat", response=friendly_response)
+
+    # طلب موضوعي: أبيات من المعلقات عن موضوع (حب، غزل، فخر، إلخ) → استرجاع + عرض في بوكس الأبيات
+    if is_thematic_verse_request(query) and AppState.is_loaded() and AppState.retriever:
+        try:
+            # توسيع الاستعلام بمرادفات لتحسين الاسترجاع
+            theme_query = query.strip()
+            q_norm_lower = _normalize_arabic(theme_query.lower())
+            if "غزل" in q_norm_lower or "حب" in q_norm_lower or "عشق" in q_norm_lower:
+                theme_query = theme_query + " غزل حب عشق عبلة حبيبة ذكرى أطلال"
+            elif "فخر" in q_norm_lower or "مفاخر" in q_norm_lower:
+                theme_query = theme_query + " فخر حماسة مفاخرة"
+            elif "شجاعة" in q_norm_lower or "شجاع" in q_norm_lower or "بأس" in q_norm_lower or "حرب" in q_norm_lower or "قتال" in q_norm_lower:
+                theme_query = theme_query + " شجاعة فخر حماسة سيف معركة بأس عنترة عمرو كلثوم"
+            elif "حماس" in q_norm_lower:
+                theme_query = theme_query + " حماسة فخر سيف معركة عنترة عمرو كلثوم"
+            elif "حكمة" in q_norm_lower:
+                theme_query = theme_query + " حكمة موعظة صلح زهير"
+            elif "وصف" in q_norm_lower and ("ناقة" in q_norm_lower or "فرس" in q_norm_lower or "راحلة" in q_norm_lower):
+                theme_query = theme_query + " وصف ناقة فرس راحلة هودج طرفة امرؤ القيس"
+            elif "أطلال" in q_norm_lower or "ديار" in q_norm_lower or "حنين" in q_norm_lower or "منزل" in q_norm_lower:
+                theme_query = theme_query + " أطلال ديار بكاء قفا نبك منزل ذكرى امرؤ القيس لبيد"
+            elif "زهد" in q_norm_lower or "موت" in q_norm_lower or "دنيا" in q_norm_lower or "تقلب" in q_norm_lower:
+                theme_query = theme_query + " زهد موت دنيا تقلب الأيام حكمة لبيد زهير"
+            elif "رحلة" in q_norm_lower or "سفر" in q_norm_lower or "ترحال" in q_norm_lower or "صحراء" in q_norm_lower:
+                theme_query = theme_query + " رحلة سفر ترحال هودج راحلة قافلة صحراء"
+            elif "فرس" in q_norm_lower or "ناقة" in q_norm_lower or "فروسية" in q_norm_lower or "خيل" in q_norm_lower:
+                theme_query = theme_query + " فرس ناقة خيل فروسية وصف طرفة امرؤ القيس"
+            elif "بلاغة" in q_norm_lower or "فصاحة" in q_norm_lower or "صناعة" in q_norm_lower:
+                theme_query = theme_query + " بلاغة فصاحة شعر لفظ معنى"
+            elif "نسب" in q_norm_lower or "قبيلة" in q_norm_lower or "عزوة" in q_norm_lower:
+                theme_query = theme_query + " نسب قبيلة فخر حماسة عمرو كلثوم عنترة"
+            elif "عدل" in q_norm_lower or "إنصاف" in q_norm_lower or "صلح" in q_norm_lower or "سلام" in q_norm_lower:
+                theme_query = theme_query + " عدل صلح سلام حكمة زهير حكماء"
+            elif "وصف" in q_norm_lower:
+                theme_query = theme_query + " وصف ناقة فرس أطلال طرفة امرؤ القيس"
+
+            # استرجاع عدد أكبر من المرشحين ثم تصفية: شرح + دقة مناسبة + بيت شعري حقيقي فقط (لا شرح في مكان البيت)
+            gen_results = AppState.retriever.search(theme_query, k=25, score_threshold=0.0)
+            poetry_items: List[SearchResultItem] = []
+            fallback_items: List[SearchResultItem] = []  # مرشحات 50–60% إن لم يوجد شيء فوق 60%
+            seen_ids: set = set()  # تجنب تكرار نفس البيت (chunk_id أو verse+poet)
+            if gen_results:
+                for r in gen_results[:25]:
+                    vt = (r.verse_text or "").strip()
+                    if not vt:
+                        continue
+                    # استبعاد مبكر: قطع ترجمة/سيرة (لا نعرضها أبداً في الطلبات الموضوعية)
+                    if _is_junk_display_text(vt):
+                        continue
+                    raw_text = (r.text or "").strip()
+                    if raw_text and ("البيت: ترجمة" in raw_text[:80] or raw_text.startswith("ترجمة ") or "اسمه ونسبه" in raw_text[:100]):
+                        continue
+                    poet = r.poet_name or "غير معروف"
+                    # تجنب تكرار نفس البيت (مع تطبيع النص: حذف مسافات زائدة)
+                    vt_norm = " ".join(vt.split())[:200]
+                    dedup_key = (vt_norm, poet)
+                    if dedup_key in seen_ids:
+                        continue
+                    seen_ids.add(dedup_key)
+                    poem = r.poem_name or "غير معروف"
+                    raw_expl = getattr(r, "explanation", None) or ""
+                    if not raw_expl and (r.text or "").strip():
+                        txt = (r.text or "").strip()
+                        raw_expl = txt.split("الشرح:")[-1].strip() if "الشرح:" in txt else txt
+                    explanation = enhance_explanation(vt, raw_expl, poet)
+                    if not explanation or len(explanation.strip()) < 15:
+                        explanation = raw_expl[:600].strip() if raw_expl else (r.text or "")[:600].strip()
+                    if not explanation or len(explanation.strip()) < 20:
+                        continue
+                    score_val = r.score if r.score is not None else 0.0
+                    verse_num = r.verse_number if r.verse_number is not None else 0
+                    display_verse = _display_verse_from_chunk(r.text or "", vt, poem)
+                    # استبعاد عناوين ترجمة أو "اسمه ونسبه" أو نصوص برقم (ليست أبياتاً)
+                    if _is_junk_thematic_verse(vt, display_verse):
+                        continue
+                    # في الطلبات الموضوعية: نعرض فقط بطاقات فيها بيت شعري حقيقي (لا نعرض "بيت من X" فقط)
+                    if display_verse.strip().startswith("بيت من "):
+                        continue
+                    item = SearchResultItem(
+                        chunk_id=str(r.chunk_id),
+                        poet_name=poet,
+                        poem_name=poem,
+                        verse_number=verse_num,
+                        verse_text=display_verse,
+                        explanation=_shorten_explanation(explanation),
+                        source_title=r.source_book or "شرح المعلقات السبع للزوزني",
+                        source_page=None,
+                        score=r.score,
+                    )
+                    if score_val >= 0.6:
+                        poetry_items.append(item)
+                    elif score_val >= 0.5:
+                        fallback_items.append(item)
+            # إن لم يوجد أي بيت بدقة ≥60% نعرض حتى 5 من فئة 50–60% لئلا تبقى النتيجة فارغة
+            if not poetry_items and fallback_items:
+                poetry_items = fallback_items[:5]
+            # إن لم يبقَ أي بيت بعد تصفية من دون شرح، نرجع رسالة واضحة
+            if not poetry_items:
+                return ChatResponse(
+                    type="chat",
+                    response="لم أجد أبياتاً في المعلقات السبع تتناول هذا الموضوع مع شرح. جرّب موضوعاً آخر أو اطلب شرح بيت معيّن."
+                )
+
+            # وجدنا أبيات: مقدمة قصيرة من LLM (عربي فقط) + عرض الأبيات في poetry_results
+            parts = [f"• {item.verse_text} ({item.poet_name})" for item in poetry_items[:5]]
+            retrieved_context = (
+                "المستخدم يطلب أبياتاً من المعلقات عن موضوع. الأدناه الأبيات المسترجعة فقط. اكتب جملة أو جملتين كمقدمة بالعربية الفصحى (بدون إنجليزية). لا تذكر أي بيت غير مذكور في القائمة أدناه؛ لا تخترع أبياتاً. انته.\n\n"
+                + "\n".join(parts)
+            )
+            llm_reply = get_llm_response_with_history(
+                query, history=history_list, context_hint=retrieved_context
+            )
+            intro = (llm_reply or "إليك أبيات من المعلقات السبع تتعلق بالموضوع:").strip()
+            return ChatResponse(
+                type="chat",
+                response=intro,
+                poetry_results=poetry_items[:5],
+            )
+        except Exception as e:
+            print(f"[DEBUG] Thematic request error: {e}")
+        return ChatResponse(
+            type="chat",
+            response="لم أجد أبياتاً في المعلقات السبع تتناول هذا الموضوع. جرّب موضوعاً آخر أو اطلب شرح بيت معيّن."
+        )
     
     # محاولة البحث عن بيت شعري
     try:
@@ -951,20 +1263,20 @@ async def chat(request: ChatRequest):
                     overlap = 2  # تجاوز فحص التداخل عند المطابقة الصريحة
                 if not force_verse_match and len(query_words) >= 3 and overlap < 2:
                     return ChatResponse(type="chat", response=VERSE_NOT_IN_MUALLAQAT_MSG)
-                # استخراج الشرح من قاعدة البيانات
+                # استخراج الشرح من قاعدة البيانات ثم تمريره على LLM (مقيد بشرح الكتاب)
                 db_explanation = r.text
+                poet_name_r = r.poet_name or "غير معروف"
+                explanation = get_llm_verse_explanation(r.verse_text or "", db_explanation, poet_name_r) or enhance_explanation(r.verse_text, db_explanation, poet_name_r)
                 
-                # الشرح من الزوزني فقط (بدون تحسين LLM)
-                explanation = enhance_explanation(r.verse_text, db_explanation, r.poet_name)
-                
-                # إنشاء نتيجة البحث
+                # إنشاء نتيجة البحث (عرض البيت الحقيقي في البوكس، لا الشرح)
+                display_verse = _display_verse_from_chunk(r.text or "", r.verse_text or query, r.poem_name or "غير معروف")
                 item = SearchResultItem(
                     chunk_id=str(r.chunk_id),
                     poet_name=r.poet_name or "غير معروف",
                     poem_name=r.poem_name or "غير معروف",
                     verse_number=r.verse_number if r.verse_number else 0,
-                    verse_text=r.verse_text or query,
-                    explanation=explanation,
+                    verse_text=display_verse,
+                    explanation=_shorten_explanation(explanation),
                     source_title=r.source_book or "شرح المعلقات السبع للزوزني",
                     source_page=None,
                     score=r.score
@@ -991,7 +1303,8 @@ async def chat(request: ChatRequest):
             v_clean = _strip_harakat(_normalize_arabic(vt))
             if "غادر" in v_clean and "متردم" in v_clean:
                 db_explanation = chunk.get("text", "")
-                explanation = enhance_explanation(vt, db_explanation, chunk.get("poet_name", ""))
+                poet_fb = chunk.get("poet_name", "") or "عنترة بن شداد"
+                explanation = get_llm_verse_explanation(vt, db_explanation, poet_fb) or enhance_explanation(vt, db_explanation, poet_fb)
                 src = chunk.get("source") or {}
                 source_book = src.get("book", "شرح المعلقات السبع للزوزني") if isinstance(src, dict) else "شرح المعلقات السبع للزوزني"
                 item = SearchResultItem(
@@ -1000,7 +1313,7 @@ async def chat(request: ChatRequest):
                     poem_name=chunk.get("poem_name") or "معلقة عنترة",
                     verse_number=int(chunk.get("verse_number", 0)),
                     verse_text=vt,
-                    explanation=explanation,
+                    explanation=_shorten_explanation(explanation),
                     source_title=source_book,
                     source_page=None,
                     score=1.0,
@@ -1013,7 +1326,8 @@ async def chat(request: ChatRequest):
         if found_chunk:
             vt = found_chunk.get("verse_text") or ""
             db_explanation = found_chunk.get("text", "")
-            explanation = enhance_explanation(vt, db_explanation, found_chunk.get("poet_name", ""))
+            poet_kw = found_chunk.get("poet_name", "") or "غير معروف"
+            explanation = get_llm_verse_explanation(vt, db_explanation, poet_kw) or enhance_explanation(vt, db_explanation, poet_kw)
             src = found_chunk.get("source") or {}
             source_book = src.get("book", "شرح المعلقات السبع للزوزني") if isinstance(src, dict) else "شرح المعلقات السبع للزوزني"
             item = SearchResultItem(
@@ -1022,7 +1336,7 @@ async def chat(request: ChatRequest):
                 poem_name=found_chunk.get("poem_name") or "غير معروف",
                 verse_number=int(found_chunk.get("verse_number", 0)),
                 verse_text=vt,
-                explanation=explanation,
+                explanation=_shorten_explanation(explanation),
                 source_title=source_book,
                 source_page=None,
                 score=0.9,

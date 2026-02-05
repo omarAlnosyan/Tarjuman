@@ -1,6 +1,8 @@
 # 🏛️ ترجمان (Tarjuman)
 ## مساعد ذكي لشرح الشعر العربي الفصيح
 
+**[📦 Repository](https://github.com/omarAlnosyan/Tarjuman)** · [![GitHub](https://img.shields.io/badge/GitHub-omarAlnosyan%2FTarjuman-181717?logo=github)](https://github.com/omarAlnosyan/Tarjuman)
+
 <div dir="rtl">
 
 **ترجمان** هو نظام ذكي متخصص في شرح الشعر العربي الكلاسيكي، مبني على تقنية **RAG** (Retrieval-Augmented Generation)، يجمع بين دقة المصادر الموثوقة وقوة الذكاء الاصطناعي.
@@ -410,12 +412,12 @@ GROQ_API_KEY=gsk_...  # Groq API key (get from console.groq.com)
 
 <div dir="rtl" align="center">
 
-**⭐ إذا أعجبك المشروع، لا تنسى إعطاءه Star! ⭐**
+**⭐ إذا أعجبك المشروع، لا تنسى [إعطاءه Star](https://github.com/omarAlnosyan/Tarjuman)! ⭐**
 
 </div>
 
 <div align="center">
 
-**⭐ If you like this project, don't forget to give it a Star! ⭐**
+**⭐ If you like this project, don't forget to [give it a Star](https://github.com/omarAlnosyan/Tarjuman)! ⭐**
 
 </div>

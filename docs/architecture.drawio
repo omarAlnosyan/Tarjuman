@@ -1,0 +1,255 @@
+<mxfile host="65bd71144e">
+    <diagram name="Tarjuman Architecture" id="page1" compressed="0">
+        <mxGraphModel dx="1193" dy="738" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1200" pageHeight="900" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="title" value="Tarjuman — System Architecture (RAG + LangChain + Embeddings)" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=18;fontStyle=1" parent="1" vertex="1">
+                    <mxGeometry x="280" y="15" width="640" height="35" as="geometry"/>
+                </mxCell>
+                <mxCell id="user" value="User&#10;(Browser)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#333333;fontSize=14;fontStyle=1" parent="1" vertex="1">
+                    <mxGeometry x="500" y="70" width="200" height="55" as="geometry"/>
+                </mxCell>
+                <mxCell id="frontend" value="Frontend — Next.js 14 :3000&#10;————————————————&#10;• page.tsx (Chat UI)&#10;• GET /health, Examples&#10;• localStorage (history)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=left;verticalAlign=top;spacingLeft=10;spacingTop=8;fontSize=12;" parent="1" vertex="1">
+                    <mxGeometry x="430" y="170" width="340" height="110" as="geometry"/>
+                </mxCell>
+                <mxCell id="backend" value="Backend — FastAPI :8000 · api/main.py&#10;————————————————&#10;• /chat · /search · /health · /poets · /examples&#10;• Chat Router → RAG (poetry) | Static | LLM (Groq)&#10;• Verse = DB only (no LLM). General Q = LLM." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;align=left;verticalAlign=top;spacingLeft=10;spacingTop=8;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="320" y="325" width="440" height="95" as="geometry"/>
+                </mxCell>
+                <mxCell id="retrieval" value="RAG — Retrieval Layer (src/retrieval/)&#10;————————————————&#10;• hybrid_search.py — HybridRetriever: exact → BM25 + Dense → merge&#10;• sparse_search.py — BM25, exact_match (rank_bm25)&#10;• dense_search.py — ChromaDB (LangChain vectorstore)&#10;• embeddings.py — multilingual-e5-base (LangChain HuggingFaceEmbeddings)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;align=left;verticalAlign=top;spacingLeft=10;spacingTop=8;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="380" y="480" width="440" height="115" as="geometry"/>
+                </mxCell>
+                <mxCell id="datajson" value="Data — Source of truth&#10;all_chunks_final.json&#10;————————————————&#10;687 verses&#10;(verse_text, explanation,&#10;poet, poem, source)&#10;+ BM25 in-memory" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#d5e8d4;strokeColor=#82b366;align=center;verticalAlign=middle;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="60" y="480" width="200" height="120" as="geometry"/>
+                </mxCell>
+                <mxCell id="datachroma" value="Vector Store — ChromaDB&#10;data/vectordb/&#10;————————————————&#10;Dense embeddings&#10;(LangChain Chroma)" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#d5e8d4;strokeColor=#82b366;align=center;verticalAlign=middle;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="880" y="480" width="220" height="120" as="geometry"/>
+                </mxCell>
+                <mxCell id="embed" value="Embeddings&#10;multilingual-e5-base&#10;————————————————&#10;LangChain HuggingFaceEmbeddings&#10;(embeddings.py)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;align=center;verticalAlign=middle;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="880" y="660" width="220" height="85" as="geometry"/>
+                </mxCell>
+                <mxCell id="groq" value="External — Groq API (optional)&#10;————————————————&#10;Llama 3.3 70B&#10;LangChain ChatGroq&#10;General Q&amp;A only (no verse)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;align=left;verticalAlign=top;spacingLeft=10;spacingTop=8;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="880" y="320" width="220" height="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="e1" value="HTTP / JSON" style="endArrow=classic;html=1;rounded=0;fontSize=12;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" parent="1" source="user" target="frontend" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e2" value="POST /chat   GET /health" style="endArrow=classic;html=1;rounded=0;fontSize=12;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" parent="1" source="frontend" target="backend" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e3" value="RAG: Hybrid Search&#10;(exact → BM25 + Dense)" style="endArrow=classic;html=1;rounded=0;fontSize=11;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" parent="1" source="backend" target="retrieval" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e4" value="Read · BM25 · Fallback" style="endArrow=classic;html=1;rounded=0;fontSize=11;exitX=0;exitY=0.5;entryX=1;entryY=0.5;" parent="1" source="retrieval" target="datajson" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e5" value="Dense search" style="endArrow=classic;html=1;rounded=0;fontSize=11;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" parent="1" source="retrieval" target="datachroma" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e6" value="LLM (general Q&amp;A)" style="endArrow=classic;html=1;rounded=0;fontSize=11;exitX=1;exitY=0.25;entryX=0;entryY=0.5;" parent="1" source="backend" target="groq" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e7" value="Load chunks at startup" style="endArrow=classic;html=1;rounded=0;fontSize=10;dashed=1;exitX=0.2;exitY=1;entryX=0.5;entryY=0;" parent="1" source="backend" target="datajson" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e8" value="Embed queries &amp; docs" style="endArrow=classic;html=1;rounded=0;fontSize=10;exitX=0.5;exitY=0;entryX=0.5;entryY=1;" parent="1" source="embed" target="datachroma" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="legend" value="RAG: Query → Router → Hybrid (Exact + BM25 + ChromaDB) → verse + explanation from DB (no LLM).  Embeddings: multilingual-e5-base.  LLM: Groq for general Q&amp;A only." style="text;html=1;strokeColor=none;fillColor=#f5f5f5;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=1;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="180" y="820" width="840" height="40" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+    <diagram name="RAG Two Phases — ترجمان" id="page2" compressed="0">
+        <mxGraphModel dx="1200" dy="1100" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="1100" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="p2title" value="Tarjuman — RAG Architecture (مرحلتان: الفهرسة + الاسترجاع والتوليد)" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=16;fontStyle=1" vertex="1" parent="1">
+                    <mxGeometry x="280" y="10" width="840" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="p2phase1" value="المرحلة 1 — الفهرسة (Indexing)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;fontStyle=1" vertex="1" parent="1">
+                    <mxGeometry x="20" y="45" width="1360" height="25" as="geometry"/>
+                </mxCell>
+                <mxCell id="p2doc" value="Documents&#10;المعلقات السبع + شرح الزوزني" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#333;fontSize=11;" vertex="1" parent="1">
+                    <mxGeometry x="80" y="90" width="180" height="55" as="geometry"/>
+                </mxCell>
+                <mxCell id="p2chunk" value="Chunking&#10;كل chunk = بيت + شرح&#10;(all_chunks_final.json)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#333;fontSize=11;" vertex="1" parent="1">
+                    <mxGeometry x="320" y="90" width="180" height="55" as="geometry"/>
+                </mxCell>
+                <mxCell id="p2chunks" value="Chunks&#10;687 بيت + شرح&#10;(verse_text, explanation, poet…)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1">
+                    <mxGeometry x="560" y="90" width="180" height="55" as="geometry"/>
+                </mxCell>
+                <mxCell id="p2embed" value="Embedding Model&#10;multilingual-e5-base&#10;(LangChain HuggingFaceEmbeddings)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" vertex="1" parent="1">
+                    <mxGeometry x="800" y="90" width="200" height="55" as="geometry"/>
+                </mxCell>
+                <mxCell id="p2vec" value="Vectorize" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+                    <mxGeometry x="1050" y="90" width="100" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="p2vs" value="Vector Store&#10;ChromaDB (data/vectordb/)" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=12;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
+                    <mxGeometry x="1200" y="80" width="160" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="p2bm25" value="BM25 (in-memory)&#10;sparse_search · rank_bm25" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
+                    <mxGeometry x="560" y="175" width="180" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="a1" style="endArrow=classic;html=1;fontSize=10;" edge="1" parent="1" source="p2doc" target="p2chunk">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="a2" style="endArrow=classic;html=1;fontSize=10;" edge="1" parent="1" source="p2chunk" target="p2chunks">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="a3" style="endArrow=classic;html=1;fontSize=10;" edge="1" parent="1" source="p2chunks" target="p2embed">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="a4" style="endArrow=classic;html=1;fontSize=10;" edge="1" parent="1" source="p2embed" target="p2vec">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="a5" style="endArrow=classic;html=1;fontSize=10;" edge="1" parent="1" source="p2vec" target="p2vs">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="a6" style="endArrow=classic;html=1;fontSize=10;dashed=1;" edge="1" parent="1" source="p2chunks" target="p2bm25">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="p2phase2" value="المرحلة 2 — الاسترجاع والتوليد (Retrieval &amp; Generation)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=12;fontStyle=1" vertex="1" parent="1">
+                    <mxGeometry x="20" y="260" width="1360" height="25" as="geometry"/>
+                </mxCell>
+                <mxCell id="p2user" value="User&#10;(المتصفح)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#333;fontSize=11;" vertex="1" parent="1">
+                    <mxGeometry x="80" y="310" width="120" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="p2query" value="Query&#10;(بيت أو سؤال)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#333;fontSize=11;" vertex="1" parent="1">
+                    <mxGeometry x="240" y="310" width="120" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="p2router" value="Router&#10;(api/main.py)&#10;نوع الطلب؟" style="rhombus;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1">
+                    <mxGeometry x="400" y="300" width="140" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="p2pathpoetry" value="مسار الشعر (RAG)&#10;Vectorize Query → Hybrid Search&#10;(Exact + BM25 + ChromaDB)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=left;spacingLeft=8;fontSize=10;" vertex="1" parent="1">
+                    <mxGeometry x="80" y="420" width="280" height="65" as="geometry"/>
+                </mxCell>
+                <mxCell id="p2retrieve" value="Retrieve&#10;verse + explanation من JSON" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
+                    <mxGeometry x="80" y="520" width="200" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="p2respPoetry" value="Response&#10;من DB فقط — لا LLM" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;fontStyle=1" vertex="1" parent="1">
+                    <mxGeometry x="80" y="600" width="200" height="45" as="geometry"/>
+                </mxCell>
+                <mxCell id="p2pathgen" value="مسار العام&#10;Augment: Query + History + Prompt" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;align=left;spacingLeft=8;fontSize=10;" vertex="1" parent="1">
+                    <mxGeometry x="480" y="420" width="220" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="p2llm" value="LLM&#10;Groq · Llama 3.3 70B&#10;(General Q&amp;A only)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;" vertex="1" parent="1">
+                    <mxGeometry x="480" y="500" width="220" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="p2respgen" value="Response&#10;(توليد)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;fontStyle=1" vertex="1" parent="1">
+                    <mxGeometry x="480" y="590" width="220" height="45" as="geometry"/>
+                </mxCell>
+                <mxCell id="b1" style="endArrow=classic;html=1;" edge="1" parent="1" source="p2user" target="p2query">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="b2" style="endArrow=classic;html=1;" edge="1" parent="1" source="p2query" target="p2router">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="b3" style="endArrow=classic;html=1;exitX=0.25;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="p2router" target="p2pathpoetry">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="b4" style="endArrow=classic;html=1;exitX=0.75;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="p2router" target="p2pathgen">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="b5" style="endArrow=classic;html=1;" edge="1" parent="1" source="p2pathpoetry" target="p2retrieve">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="b6" style="endArrow=classic;html=1;" edge="1" parent="1" source="p2retrieve" target="p2respPoetry">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="b7" style="endArrow=classic;html=1;" edge="1" parent="1" source="p2pathgen" target="p2llm">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="b8" style="endArrow=classic;html=1;" edge="1" parent="1" source="p2llm" target="p2respgen">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="p2search" value="Search&#10;(Hybrid Retriever)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;" vertex="1" parent="1">
+                    <mxGeometry x="420" y="440" width="120" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="b9" style="endArrow=classic;html=1;dashed=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="p2pathpoetry" target="p2search">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="b10" style="endArrow=classic;html=1;exitX=0.5;exitY=0;entryX=0.5;entryY=1;" edge="1" parent="1" source="p2search" target="p2retrieve">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="480" y="410"/>
+                            <mxPoint x="180" y="410"/>
+                            <mxPoint x="180" y="520"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="p2legend" value="ترجمان: مرحلة 1 = فهرسة 687 بيت في JSON + BM25 + ChromaDB.  مرحلة 2 = مسار الشعر (استرجاع من DB فقط، لا LLM) أو مسار العام (LLM Groq)." style="text;html=1;strokeColor=none;fillColor=#f5f5f5;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=1;fontSize=10;" vertex="1" parent="1">
+                    <mxGeometry x="80" y="680" width="620" height="35" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+    <diagram name="RAG Flow — Keywords (ترجمان)" id="page3" compressed="0">
+        <mxGraphModel dx="1100" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1100" pageHeight="800" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="p3title" value="Tarjuman — RAG Architecture (Keywords)" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=16;fontStyle=1" vertex="1" parent="1">
+                    <mxGeometry x="320" y="12" width="460" height="28" as="geometry"/>
+                </mxCell>
+                <mxCell id="p3data" value="Data&#xa;المعلقات 687 بيت&#xa;شرح الزوزني" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#333333;fontSize=13;fontStyle=1" vertex="1" parent="1">
+                    <mxGeometry x="40" y="80" width="160" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="p3chunk" value="Chunking &amp; Indexing&#xa;بيت + شرح → chunks" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;fontStyle=1" vertex="1" parent="1">
+                    <mxGeometry x="40" y="180" width="160" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="p3embed" value="Embeddings&#xa;multilingual-e5-base" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=12;" vertex="1" parent="1">
+                    <mxGeometry x="40" y="260" width="160" height="45" as="geometry"/>
+                </mxCell>
+                <mxCell id="p3chroma" value="ChromaDB&#xa;Vector Database" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;size=12;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;fontStyle=1" vertex="1" parent="1">
+                    <mxGeometry x="60" y="340" width="120" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="p3bm25" value="BM25&#xa;Keyword index" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;" vertex="1" parent="1">
+                    <mxGeometry x="40" y="430" width="160" height="45" as="geometry"/>
+                </mxCell>
+                <mxCell id="p3user" value="User Query&#xa;سؤال / بيت شعر" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#333333;fontSize=13;fontStyle=1" vertex="1" parent="1">
+                    <mxGeometry x="320" y="70" width="180" height="55" as="geometry"/>
+                </mxCell>
+                <mxCell id="p3router" value="Router&#xa;verse / general?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;fontStyle=1" vertex="1" parent="1">
+                    <mxGeometry x="350" y="155" width="140" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="p3hybrid" value="Hybrid Search&#xa;Exact + BM25 + ChromaDB" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;fontStyle=1" vertex="1" parent="1">
+                    <mxGeometry x="320" y="250" width="200" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="p3context" value="Matched Context&#xa;verse + explanation" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=12;" vertex="1" parent="1">
+                    <mxGeometry x="340" y="330" width="160" height="45" as="geometry"/>
+                </mxCell>
+                <mxCell id="p3verse" value="Verse path&#xa;Response from DB&#xa;(no LLM)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;fontStyle=1" vertex="1" parent="1">
+                    <mxGeometry x="280" y="410" width="140" height="55" as="geometry"/>
+                </mxCell>
+                <mxCell id="p3llm" value="LLM&#xa;Groq · Llama 3.3 70B" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=12;fontStyle=1" vertex="1" parent="1">
+                    <mxGeometry x="340" y="410" width="160" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="p3answer" value="Answer&#xa;الإجابة" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#333333;fontSize=13;fontStyle=1" vertex="1" parent="1">
+                    <mxGeometry x="350" y="500" width="140" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="c1" style="endArrow=classic;html=1;strokeWidth=2;fontSize=11;" edge="1" parent="1" source="p3data" target="p3chunk"><mxGeometry relative="1" as="geometry"/></mxCell>
+                <mxCell id="c2" style="endArrow=classic;html=1;strokeWidth=2;fontSize=11;" edge="1" parent="1" source="p3chunk" target="p3embed"><mxGeometry relative="1" as="geometry"/></mxCell>
+                <mxCell id="c3" style="endArrow=classic;html=1;strokeWidth=2;fontSize=11;" edge="1" parent="1" source="p3embed" target="p3chroma"><mxGeometry relative="1" as="geometry"/></mxCell>
+                <mxCell id="c4" style="endArrow=classic;html=1;strokeWidth=2;dashed=1;fontSize=11;" edge="1" parent="1" source="p3chunk" target="p3bm25"><mxGeometry relative="1" as="geometry"/></mxCell>
+                <mxCell id="c5" style="endArrow=classic;html=1;strokeWidth=2;fontSize=11;" edge="1" parent="1" source="p3user" target="p3router"><mxGeometry relative="1" as="geometry"/></mxCell>
+                <mxCell id="c6" style="endArrow=classic;html=1;strokeWidth=2;fontSize=11;" edge="1" parent="1" source="p3router" target="p3hybrid"><mxGeometry relative="1" as="geometry"/></mxCell>
+                <mxCell id="c7" style="endArrow=classic;html=1;strokeWidth=2;fontSize=11;" edge="1" parent="1" source="p3hybrid" target="p3context"><mxGeometry relative="1" as="geometry"/></mxCell>
+                <mxCell id="c8" style="endArrow=classic;html=1;strokeWidth=2;fontSize=11;" edge="1" parent="1" source="p3context" target="p3verse"><mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="340" y="385"/><mxPoint x="350" y="385"/><mxPoint x="350" y="410"/></Array></mxGeometry></mxCell>
+                <mxCell id="c9" style="endArrow=classic;html=1;strokeWidth=2;fontSize=11;" edge="1" parent="1" source="p3context" target="p3llm"><mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="420" y="385"/><mxPoint x="420" y="410"/></Array></mxGeometry></mxCell>
+                <mxCell id="c10" style="endArrow=classic;html=1;strokeWidth=2;fontSize=11;" edge="1" parent="1" source="p3verse" target="p3answer"><mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="350" y="480"/><mxPoint x="420" y="480"/><mxPoint x="420" y="500"/></Array></mxGeometry></mxCell>
+                <mxCell id="c11" style="endArrow=classic;html=1;strokeWidth=2;fontSize=11;" edge="1" parent="1" source="p3llm" target="p3answer"><mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="420" y="470"/><mxPoint x="420" y="500"/></Array></mxGeometry></mxCell>
+                <mxCell id="c12" style="endArrow=classic;html=1;strokeWidth=1;dashed=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="p3hybrid" target="p3chroma"><mxGeometry relative="1" as="geometry"/></mxCell>
+                <mxCell id="c13" style="endArrow=classic;html=1;strokeWidth=1;dashed=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="p3hybrid" target="p3bm25"><mxGeometry relative="1" as="geometry"/></mxCell>
+                <mxCell id="p3lbl1" value="Data&#xa;Ingestion" style="text;html=1;strokeColor=none;fillColor=#dae8fc;align=center;verticalAlign=middle;fontSize=11;fontStyle=1" vertex="1" parent="1">
+                    <mxGeometry x="20" y="48" width="100" height="28" as="geometry"/>
+                </mxCell>
+                <mxCell id="p3lbl2" value="Query&#xa;Processing" style="text;html=1;strokeColor=none;fillColor=#fff2cc;align=center;verticalAlign=middle;fontSize=11;fontStyle=1" vertex="1" parent="1">
+                    <mxGeometry x="300" y="48" width="100" height="28" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>
